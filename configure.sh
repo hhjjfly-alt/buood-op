@@ -16,6 +16,10 @@ echo "src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git;main"
 echo 'src-git smartdns_luci https://github.com/pymumu/luci-app-smartdns;lede' >>feeds.conf.default
 # iStore
 echo "src-git istore https://github.com/linkease/istore;main" >> feeds.conf.default
+# Update SmartDNS version
+sed -i 's/1.2024.45/1.2024.46/g' feeds/packages/net/smartdns/Makefile
+sed -i 's/9ee27e7ba2d9789b7e007410e76c06a957f85e98/b525170bfd627607ee5ac81f97ae0f1f4f087d6b/g' feeds/packages/net/smartdns/Makefile
+sed -i 's/^PKG_MIRROR_HASH/#&/' feeds/packages/net/smartdns/Makefile
 
 # 替换默认主题
 rm -rf package/lean/luci-theme-argon 
