@@ -29,6 +29,7 @@ popd
 # git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall package/luci-app-passwall
 
 # 只删除 PassWall 会用到的冲突包
+rm -rf feeds/luci/applications/luci-app-passwall/
 rm -rf feeds/packages/net/xray-core
 rm -rf feeds/packages/net/xray-plugin
 rm -rf feeds/packages/net/v2ray-core
