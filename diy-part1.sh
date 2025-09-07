@@ -13,5 +13,21 @@ if command -v add_feed_unique >/dev/null 2>&1; then
     # add_feed_unique passwall_packages 'https://github.com/xiaorouji/openwrt-passwall-packages;main'
 fi
 
-########### 可选内核版本调整 ###########
+########### 1. 内核版本（可选） ###########
 sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.12/' target/linux/x86/Makefile
+
+########### 2. 官方 Passwall 源（优先级最高） ###########
+# 函数由主脚本 Build_x86OpenWrt.sh 导出，幂等添加
+if command -v add_feed_unique >/dev/null 2>&1; then
+    # 核心二进制仓库（含 Xray/Sing-Box/Hysteria/ChinaDNS-NG/Geoview 等）
+    add_feed_unique passwall_packages 'https://github.com/xiaorouji/openwrt-passwall-packages;main'
+    # LuCI 界面仓库
+    add_feed_unique passwall_luci      'https://github.com/xiaorouji/openwrt-passwall;main'
+fi
+
+########### 3. 每次编译都“强制刷新”一次二进制版本 ###########
+# 在 feeds 安装完成后、make menuconfig 之前执行
+cat >> ./package/lean/passwall-force-latest.mk <<'EOF'
+# 强制使用上游最新 commit，不缓存旧版本
+PKG_SOURCE_VERSION:=$(shell git ls-remote https://github.com/xiaorouji/openwrt-passwall-packages HEAD | awk '{print $$1}')
+EOF
