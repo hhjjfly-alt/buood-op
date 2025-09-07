@@ -1,28 +1,17 @@
 #!/bin/bash
-#
 # Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
-# https://github.com/P3TERX/Actions-OpenWrt
-# File name: diy-part1.sh
-# Description: OpenWrt DIY script part 1 (Before Update feeds)
-#
-# Add a feed source
-########### 更改大雕源码（可选）########
+# MIT License
+# 描述: OpenWrt DIY script part 1 (Before Update feeds)
+
+# 仅在主脚本导出 add_feed_unique 后生效，云编译可安全忽略
+if command -v add_feed_unique >/dev/null 2>&1; then
+    # 幂等添加 iStore 及相关源
+    add_feed_unique istore          'https://github.com/linkease/istore;main'
+    add_feed_unique istore_packages 'https://github.com/linkease/istore-packages;main'
+    add_feed_unique smartdns_luci   'https://github.com/pymumu/luci-app-smartdns;lede'
+    # 如需其它源，继续往下写即可
+    # add_feed_unique passwall_packages 'https://github.com/xiaorouji/openwrt-passwall-packages;main'
+fi
+
+########### 可选内核版本调整 ###########
 sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.12/' target/linux/x86/Makefile
-# sed -i '$a src-git lienol https://github.com/Lienol/openwrt-package' feeds.conf.default
-# sed -i '$a src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default
-# sed -i '1i src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default
-
-# ----- 添加 iStore 源 -----
-# 假设函数已在主脚本里定义
-add_feed_unique istore https://github.com/linkease/istore;main
-add_feed_unique istore_packages https://github.com/linkease/istore-packages;main
-
-# Add a feed source
-# echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main' >>feeds.conf.default
-#echo 'src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;main' >>feeds.conf.default
-add_feed_unique smartdns_luci https://github.com/pymumu/luci-app-smartdns.git;lede' >>feeds.conf.default
-# echo 'src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;luci-smartdns-dev' >>feeds.conf.default
