@@ -25,6 +25,11 @@ if command -v add_feed_unique >/dev/null 2>&1; then
     add_feed_unique passwall_luci      'https://github.com/xiaorouji/openwrt-passwall;main'
 fi
 
+# 确保函数已导出（主脚本 Build_x86OpenWrt.sh 已 export -f add_feed_unique）
+if command -v add_feed_unique >/dev/null 2>&1; then
+    # 1. 官方 ChinaDNS-NG 二进制源（main 分支即最新 release）
+    add_feed_unique chinadns_ng 'https://github.com/zfl9/chinadns-ng;main'
+fi
 ########### 3. 每次编译都“强制刷新”一次二进制版本 ###########
 # 在 feeds 安装完成后、make menuconfig 之前执行
 cat >> ./package/lean/passwall-force-latest.mk <<'EOF'
