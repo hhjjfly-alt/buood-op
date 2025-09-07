@@ -22,9 +22,20 @@ sed -i "s/${orig_version}/${orig_version} ($(date +"%Y-%m-%d"))/g" zzz-default-s
 popd
 
 # Passwall
-rm -rf feeds/luci/applications/luci-app-passwall/
-rm -rf feeds/packages/net/xray-core/
-rm -rf feeds/packages/net/xray-plugin/
+# rm -rf feeds/luci/applications/luci-app-passwall/
+# rm -rf feeds/packages/net/xray-core/
+# rm -rf feeds/packages/net/xray-plugin/
+# git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall-packages package/openwrt-passwall
+# git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall package/luci-app-passwall
+
+# 只删除 PassWall 会用到的冲突包
+rm -rf feeds/packages/net/xray-core
+rm -rf feeds/packages/net/xray-plugin
+rm -rf feeds/packages/net/v2ray-core
+rm -rf feeds/packages/net/v2ray-plugin
+rm -rf feeds/packages/net/sing-box
+
+# 然后拉取 PassWall 的包
 git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall-packages package/openwrt-passwall
 git clone --depth=1 https://github.com/xiaorouji/openwrt-passwall package/luci-app-passwall
 
