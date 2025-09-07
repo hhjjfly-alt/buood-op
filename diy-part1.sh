@@ -16,6 +16,10 @@ sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.12/' target/linux/x86/Makefile
 # sed -i '$a src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default
 # sed -i '1i src-git kenzo https://github.com/kenzok8/openwrt-packages' feeds.conf.default
 
+# ----- 添加 iStore 源 -----
+echo 'src-git store https://github.com/linkease/istore.git;main' >> feeds.conf.default
+echo 'src-git istore_packages https://github.com/linkease/istore-packages.git;main' >> feeds.conf.default
+
 # Add a feed source
 # echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main' >>feeds.conf.default
 #echo 'src-git passwall_luci https://github.com/xiaorouji/openwrt-passwall.git;main' >>feeds.conf.default
