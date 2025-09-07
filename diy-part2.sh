@@ -1,38 +1,25 @@
 #!/bin/bash
 #  diy-part2.sh  （After Update feeds）
 #  功能清单：
-#  1. 万能克隆/更新函数
-#  2. Go 模块预拉（防止编译时残缺）
-#  3. 最新 PassWall（删-拉-覆盖法）
-#  4. 默认 IP / 固件名 / 系统版本加日期
-#  5. SmartDNS 版本 bump
-#  6. 额外插件（lucky & dockerman）幂等
-#  7. 系统调优
+#  1. 万能克隆函数
+#  2. 最新 PassWall（删-拉-覆盖法）→ 永远官方 HEAD
+#  3. 默认 IP / 主机名 / 固件名 / 系统版本加日期
+#  4. SmartDNS 版本 bump
+#  5. 额外插件（lucky & dockerman）幂等克隆
+#  6. 连接数优化 & 其它系统调优
 
 ########### 万能函数：克隆或拉取最新 ###########
 clone_or_pull() {
   local repo=$1 dir=$2
   if [[ -d "$dir/.git" ]]; then
+    echo "Update $dir ..."
     git -C "$dir" fetch --depth 1
     git -C "$dir" reset --hard origin/HEAD
   else
+    echo "Clone $repo -> $dir ..."
     git clone --depth 1 "$repo" "$dir"
   fi
 }
-
-########### 0. 预拉 Go 模块（防止编译时残缺） ###########
-OWRT="$HOME/openwrt-build/openwrt"
-export GOPROXY=https://goproxy.cn,direct
-prefetch_sing_box_deps() {
-  local tmp=$(mktemp -d)
-  git clone --depth 1 https://github.com/sagernet/sing-box.git "$tmp"
-  cd "$tmp"
-  go mod download -x
-  rsync -a "$HOME/go/pkg/mod/" "$OWRT/dl/go-mod-cache/"
-  cd "$OWRT"
-  rm -rf "$tmp"
-}
-prefetch_sing_box_deps
 
 ########### 1. 最新 PassWall（删-拉-覆盖法） ###########
 # 1.1 删光 lean 老包（确保官方包优先级最高）
@@ -50,7 +37,7 @@ rm -rf package/pw-packages
 # 1.4 强制重新下载源码（保证每次编译都是最新 commit）
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 
-########### 2. 默认 IP / 固件名 / 系统版本 ###########
+########### 2. 默认 IP / 主机名 / 固件名 / 系统版本 ###########
 # 2.1 默认 IP
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 # 2.2 固件名加日期
@@ -73,8 +60,14 @@ clone_or_pull https://github.com/lisaac/luci-app-dockerman.git luci-app-dockerma
 popd
 
 ########### 5. 系统调优 ###########
-# 连接数上限
+# 5.1 连接数上限
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
-# 可选：彩色提示符
+# 5.2 默认 shell 提示符颜色（可选）
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> package/base-files/files/etc/profile
+
+########### 6. 其它可选微调（按需打开） ###########
+# 6.1 关闭无用服务
+# sed -i '/dnsmasq/d' include/target.mk
+# 6.2 默认开启 WiFi（无无线可忽略）
+# sed -i 's/disabled=1/disabled=0/g' package/kernel/mac80211/files/lib/wifi/mac80211.sh
