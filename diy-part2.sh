@@ -61,7 +61,7 @@ popd
 sed -i '/customized in this file/a net.netfilter.nf_conntrack_max=165535' package/base-files/files/etc/sysctl.conf
 
 # ---------- iStore 官方源 ----------
-echo >> feeds.conf.default
-echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+# echo >> feeds.conf.default
+# echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
 # ./scripts/feeds update istore
 # ./scripts/feeds install -d y -p istore luci-app-store
