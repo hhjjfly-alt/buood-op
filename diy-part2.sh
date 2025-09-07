@@ -15,7 +15,8 @@ popd
 
 # 2. 强制重新下载 PassWall 组件源码（确保每次都用上游最新）
 rm -rf feeds/passwall_packages/* feeds/passwall_luci/*
-
+# 强制重新下载 ChinaDNS-NG 源码（保证每次编译都是上游 HEAD）
+rm -rf feeds/chinadns_ng/*
 # 3. SmartDNS 版本 bump（可选）
 sed -i 's/1.2024.45/1.2024.46/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/b525170bfd627607ee5ac81f97ae0f1f4f087d6b/g; /^PKG_MIRROR_HASH/s/^/#/' \
        feeds/packages/net/smartdns/Makefile
