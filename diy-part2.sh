@@ -7,9 +7,6 @@
 #  4. SmartDNS 版本 bump
 #  5. 额外插件（lucky & dockerman）幂等克隆
 #  6. 连接数优化 & 其它系统调优
-# ========== 0. 定位目录（必须最先执行） ==========
-OWRT="$HOME/openwrt-build/openwrt"
-cd "$OWRT" || exit 1
 ########### 万能函数：克隆或拉取最新 ###########
 clone_or_pull() {
   local repo=$1 dir=$2
@@ -43,17 +40,6 @@ rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 ########### 6. 仅拉取 OpenWrt 部分（跳过移动端子模块） ###########
 # 6.1 删除旧包
 rm -rf feeds/packages/net/sing-box package/sing-box
-
-# 6.2 浅克隆主仓，**排除 clients 子模块**
-git clone --depth 1 --filter=blob:none \
-  --sparse https://github.com/SagerNet/sing-box.git package/sing-box
-cd package/sing-box
-git sparse-checkout init --cone
-git sparse-checkout set package cmd go.mod go.sum Makefile  # 只检出必要目录
-cd "$OWRT"
-
-# 6.3 软链到 feeds（让官方 Makefile 生效）
-ln -sf "$OWRT/package/sing-box" "$OWRT/feeds/packages/net/sing-box"
 
 ########### 2. 默认 IP / 主机名 / 固件名 / 系统版本 ###########
 # 2.1 默认 IP
