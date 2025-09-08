@@ -40,18 +40,19 @@ rm -rf package/pw-packages
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 
 ########### 6. 编译官方最新 sing-box（主仓 + 子模块） ###########
-# 6.1 删除旧包（确保优先级）
-rm -rf feeds/packages/net/sing-box
-rm -rf package/sing-box
+########### 6. 仅拉取 OpenWrt 部分（跳过移动端子模块） ###########
+# 6.1 删除旧包
+rm -rf feeds/packages/net/sing-box package/sing-box
 
-# 6.2 克隆主仓 + 子模块（HEAD 即最新）
-clone_or_pull https://github.com/SagerNet/sing-box.git package/sing-box
+# 6.2 浅克隆主仓，**排除 clients 子模块**
+git clone --depth 1 --filter=blob:none \
+  --sparse https://github.com/SagerNet/sing-box.git package/sing-box
 cd package/sing-box
-git submodule update --init --recursive
+git sparse-checkout init --cone
+git sparse-checkout set package cmd go.mod go.sum Makefile  # 只检出必要目录
 cd "$OWRT"
 
-# 6.3 用官方 Makefile 编译（无需自己写）
-# 让 OpenWrt 扫描到它
+# 6.3 软链到 feeds（让官方 Makefile 生效）
 ln -sf "$OWRT/package/sing-box" "$OWRT/feeds/packages/net/sing-box"
 
 ########### 2. 默认 IP / 主机名 / 固件名 / 系统版本 ###########
