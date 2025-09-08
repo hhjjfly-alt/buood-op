@@ -40,13 +40,20 @@ rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 ########### 2. 默认 IP / 主机名 / 固件名 / 系统版本 ###########
 # 2.1 默认 IP
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
+
 # 2.2 固件名加日期
 sed -i 's/IMG_PREFIX:=.*/IMG_PREFIX:=full-$(shell date +%Y%m%d)-$(VERSION_DIST_SANITIZED)/g' include/image.mk
-# 2.3 系统版本加日期
+
+# 2.3 系统版本加日期（保留原描述）
 pushd package/lean/default-settings/files
 sed -i '/http/d' zzz-default-settings
-orig_version="$(grep DISTRIB_REVISION zzz-default-settings | awk -F"'" '{print $2}')"
+
+# 给 DISTRIB_REVISION 加日期
+orig_version="$(grep DISTRIB_REVISION= zzz-default-settings | awk -F"'" '{print $2}')"
 sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-settings
+
+# 在 DISTRIB_DESCRIPTION 末尾追加日期
+sed -i "s/\(DISTRIB_DESCRIPTION=.*\)'/\1 ($(date +%Y%m%d))'/" zzz-default-settings
 popd
 
 ########### 3. SmartDNS 版本 bump（可选） ###########
