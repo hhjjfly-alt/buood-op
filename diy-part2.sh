@@ -7,7 +7,9 @@
 #  4. SmartDNS 版本 bump
 #  5. 额外插件（lucky & dockerman）幂等克隆
 #  6. 连接数优化 & 其它系统调优
-
+# ========== 0. 定位目录（必须最先执行） ==========
+OWRT="$HOME/openwrt-build/openwrt"
+cd "$OWRT" || exit 1
 ########### 万能函数：克隆或拉取最新 ###########
 clone_or_pull() {
   local repo=$1 dir=$2
