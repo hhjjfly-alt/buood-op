@@ -57,8 +57,8 @@ orig_version="$(grep DISTRIB_REVISION= zzz-default-settings | awk -F"'" '{print 
 sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-settings
 
 # 在 DISTRIB_DESCRIPTION 末尾追加日期
-sed -i "s/\(DISTRIB_DESCRIPTION=.*\)'/\1 ($(date +%Y%m%d))'/" zzz-default-settings
-popd
+#sed -i "s/\(DISTRIB_DESCRIPTION=.*\)'/\1 ($(date +%Y%m%d))'/" zzz-default-settings
+#popd
 
 ########### 3. SmartDNS 版本 bump（可选） ###########
 sed -i 's/1\.2024\.45/1.2024.46/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/b525170bfd627607ee5ac81f97ae0f1f4f087d6b/g; /^PKG_MIRROR_HASH/s/^/#/' \
