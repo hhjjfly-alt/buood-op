@@ -56,17 +56,18 @@ sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 # 2.2 固件名加日期
 sed -i 's/IMG_PREFIX:=.*/IMG_PREFIX:=full-$(shell date +%Y%m%d)-$(VERSION_DIST_SANITIZED)/g' include/image.mk
 
-# 2.3 系统版本加日期（保留原描述）
-pushd package/lean/default-settings/files
-sed -i '/http/d' zzz-default-settings
-
-# 给 DISTRIB_REVISION 加日期
-orig_version="$(grep DISTRIB_REVISION= zzz-default-settings | awk -F"'" '{print $2}')"
-sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-settings
-
-# 在 DISTRIB_DESCRIPTION 末尾追加日期
-#sed -i "s/\(DISTRIB_DESCRIPTION=.*\)'/\1 ($(date +%Y%m%d))'/" zzz-default-settings
-popd
+# 2. 版本加日期（替换你原来的 2.3 整块）
+ds_path=$(find package/ -type d -name 'default-settings*' -print -quit)
+if [ -n "$ds_path" ]; then
+  pushd "$ds_path/files" >/dev/null
+    sed -i '/http/d' zzz-default-settings
+    orig_version="$(grep DISTRIB_REVISION= zzz-default-settings | awk -F"'" '{print $2}')"
+    sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-settings
+    # sed -i "s/\(DISTRIB_DESCRIPTION=.*\)'/\1 ($(date +%Y%m%d))'/" zzz-default-settings
+  popd >/dev/null
+else
+  echo "=== default-settings 未找到，跳过版本加日期 ==="
+fi
 
 ########### 3. SmartDNS 版本 bump（可选） ###########
 sed -i 's/1\.2024\.45/1.2024.46/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/b525170bfd627607ee5ac81f97ae0f1f4f087d6b/g; /^PKG_MIRROR_HASH/s/^/#/' \
@@ -91,9 +92,9 @@ echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]
 # 6.2 默认开启 WiFi（无无线可忽略）
 # sed -i 's/disabled=1/disabled=0/g' package/kernel/mac80211/files/lib/wifi/mac80211.sh
 
-# ---------- iStore 官方源 ----------
-echo >> feeds.conf.default
-echo 'src-git istore https://github.com/linkease/istore ;main' >> feeds.conf.default
+# 1. 追加 istore 源（替换你原来的 echo 两行）
+grep -q '^src-git istore' feeds.conf.default || \
+  echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
 ./scripts/feeds update istore
 ./scripts/feeds install -d y -p istore luci-app-store
 
