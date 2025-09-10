@@ -1,12 +1,5 @@
 #!/bin/bash
-#  diy-part2.sh  （After Update feeds）
-#  功能清单：
-#  1. 万能克隆函数
-#  2. 最新 PassWall（删-拉-覆盖法）→ 永远官方 HEAD
-#  3. 默认 IP / 主机名 / 固件名 / 系统版本加日期
-#  4. SmartDNS 版本 bump
-#  5. 额外插件（lucky & dockerman）幂等克隆
-#  6. 连接数优化 & 其它系统调优
+#  diy-part2.sh  
 ########### 万能函数：克隆或拉取最新 ###########
 clone_or_pull() {
   local repo=$1 dir=$2
@@ -37,7 +30,6 @@ rm -rf package/pw-packages
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 
 ########### 1.5 修复 geoview 二次编译 protobuf 缓存缺失 ###########
-# 去掉复用 GOMODCACHE 的参数，让 go 每次都拉完整依赖
 geoview_mk="package/pw-luci/geoview/Makefile"
 if [ -f "$geoview_mk" ]; then
   sed -i '/^GO_MOD_DOWNLOAD_ARGS.*GO_MOD_CACHE_DIR/d' "$geoview_mk"
@@ -45,7 +37,6 @@ if [ -f "$geoview_mk" ]; then
 fi
 
 ########### 6. 编译官方最新 sing-box（主仓 + 子模块） ###########
-########### 6. 仅拉取 OpenWrt 部分（跳过移动端子模块） ###########
 # 6.1 删除旧包
 rm -rf feeds/packages/net/sing-box package/sing-box
 
@@ -86,36 +77,8 @@ echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sys
 # 5.2 默认 shell 提示符颜色（可选）
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> package/base-files/files/etc/profile
 
-########### 6. 其它可选微调（按需打开） ###########
-# 6.1 关闭无用服务
-# sed -i '/dnsmasq/d' include/target.mk
-# 6.2 默认开启 WiFi（无无线可忽略）
-# sed -i 's/disabled=1/disabled=0/g' package/kernel/mac80211/files/lib/wifi/mac80211.sh
-
 # 1. 追加 istore 源（替换你原来的 echo 两行）
 grep -q '^src-git istore' feeds.conf.default || \
   echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
 ./scripts/feeds update istore
 ./scripts/feeds install -d y -p istore luci-app-store
-
-# DUPLICATE: 以下整段与上文“########### 2. 默认 IP ... ###########”完全重复，故注释
-: '
-########### 2. 默认 IP / 主机名 / 固件名 / 系统版本 ###########
-# 2.1 默认 IP
-sed -i s/192.168.1.1/10.0.0.10/g package/base-files/files/bin/config_generate
-
-# 2.2 固件名加日期
-sed -i s/IMG_PREFIX:=.*/IMG_PREFIX:=full-$(shell date +%Y%m%d)-$(VERSION_DIST_SANITIZED)/g include/image.mk
-
-# 2.3 系统版本加日期（保留原描述）
-pushd package/lean/default-settings/files
-sed -i /http/d zzz-default-settings
-
-# 给 DISTRIB_REVISION 加日期
-orig_version="$(grep DISTRIB_REVISION= zzz-default-settings | awk -F"'" '{print $2}')"
-sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-settings
-
-# 在 DISTRIB_DESCRIPTION 末尾追加日期
-#sed -i "s/\(DISTRIB_DESCRIPTION=.*\)'/\1 ($(date +%Y%m%d))'/" zzz-default-settings
-popd
-'
