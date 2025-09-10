@@ -19,7 +19,12 @@ clone_or_pull() {
     git clone --depth 1 "$repo" "$dir"
   fi
 }
-
+########### 0. 若 istore 已存在则跳过（避免重复） ###########
+grep -q '^src-git istore' feeds.conf.default || {
+  echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+  ./scripts/feeds update istore
+  ./scripts/feeds install -d y -p istore luci-app-store
+}
 ########### 1. 最新 PassWall（删-拉-覆盖法） ###########
 # 1.1 删光 lean 老包（确保官方包优先级最高）
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
