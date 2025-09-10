@@ -36,6 +36,14 @@ rm -rf package/pw-packages
 # 1.4 强制重新下载源码（保证每次编译都是最新 commit）
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 
+########### 1.5 修复 geoview 二次编译 protobuf 缓存缺失 ###########
+# 去掉复用 GOMODCACHE 的参数，让 go 每次都拉完整依赖
+geoview_mk="package/pw-luci/geoview/Makefile"
+if [ -f "$geoview_mk" ]; then
+  sed -i '/^GO_MOD_DOWNLOAD_ARGS.*GO_MOD_CACHE_DIR/d' "$geoview_mk"
+  echo "=== 已修补 $geoview_mk ，geoview 不再复用残缺缓存 ==="
+fi
+
 ########### 6. 编译官方最新 sing-box（主仓 + 子模块） ###########
 ########### 6. 仅拉取 OpenWrt 部分（跳过移动端子模块） ###########
 # 6.1 删除旧包
