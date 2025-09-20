@@ -38,21 +38,24 @@ cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
 
 # ==================== 在这里粘贴新的修复代码 ====================
-# 通用化自动修复：为所有 Go 软件包的 Makefile 添加 GO_MOD_TIDY:=1
-echo "Patching ALL Go package Makefiles with GO_MOD_TIDY..."
+# ==================== FINAL REPAIR SCRIPT ====================
+# Universally patch all Go packages to force module vendoring,
+# which resolves "no required module provides package" errors.
+echo "Patching ALL Go package Makefiles to force module vendoring..."
 
-# 使用 find 命令查找 pw-luci 目录下所有的 Makefile 文件
+# Use find to locate all Makefiles within the pw-luci directory
 find package/pw-luci -name 'Makefile' | while read -r makefile_path; do
-    # 检查 Makefile 是否属于一个 Go 软件包 (通过是否包含 golang-package.mk 来判断)
+    # Check if the Makefile is for a Go package
     if grep -q 'golang-package.mk' "$makefile_path"; then
-        # 检查是否已添加过补丁，避免重复
-        if ! grep -q "GO_MOD_TIDY:=1" "$makefile_path"; then
-            # 在包含 golang-package.mk 的那一行下面，追加 GO_MOD_TIDY:=1
-            sed -i '/golang-package.mk/a GO_MOD_TIDY:=1' "$makefile_path"
+        # Check if the patch is already applied to avoid duplicates
+        if ! grep -q "GO_MOD_VENDOR:=1" "$makefile_path"; then
+            # Apply the patch by inserting the line after the golang-package.mk include
+            sed -i '/golang-package.mk/a GO_MOD_VENDOR:=1' "$makefile_path"
             echo "  -> Patched Go Makefile: ${makefile_path}"
         fi
     fi
 done
+# =============================================================
 # =============================================================
 
 # 1.4 强制重新下载源码（保证每次编译都是最新 commit）
