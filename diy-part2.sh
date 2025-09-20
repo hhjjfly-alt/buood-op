@@ -36,6 +36,27 @@ clone_or_pull https://github.com/xiaorouji/openwrt-passwall.git               pa
 # 1.3 二进制包全部塞进 luci 目录，用完即扔
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
+# 自动为 Go 软件包的 Makefile 添加 GO_MOD_TIDY:=1
+echo "Patching Go package Makefiles with GO_MOD_TIDY..."
+# 定义需要修复的 Go 软件包列表
+GO_PACKAGES_TO_FIX="geoview hysteria v2ray-plugin xray-core"
+for pkg_name in $GO_PACKAGES_TO_FIX; do
+    # 定位 Makefile 文件
+    makefile_path="package/pw-luci/${pkg_name}/Makefile"
+    # 检查 Makefile 是否存在
+    if [ -f "$makefile_path" ]; then
+        # 检查是否已添加过，避免重复添加
+        if ! grep -q "GO_MOD_TIDY:=1" "$makefile_path"; then
+            # 在包含 golang-package.mk 的那一行下面，追加 GO_MOD_TIDY:=1
+            sed -i '/golang-package.mk/a GO_MOD_TIDY:=1' "$makefile_path"
+            echo "  -> Patched ${pkg_name}"
+        else
+            echo "  -> ${pkg_name} already patched, skipping."
+        fi
+    else
+        echo "  -> WARNING: Makefile for ${pkg_name} not found!"
+    fi
+done
 
 # 1.4 强制重新下载源码（保证每次编译都是最新 commit）
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
