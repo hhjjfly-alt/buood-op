@@ -27,23 +27,23 @@ grep -q '^src-git istore' feeds.conf.default || {
 }
 ########### 1. 最新 PassWall（删-拉-覆盖法） ###########
 # 1.1 删光 lean 老包（确保官方包优先级最高）
-# rm -rf feeds/luci/applications/luci-app-passwall
+rm -rf feeds/luci/applications/luci-app-passwall
 
 # 1.2 拉官方仓库 → package/ 目录（HEAD 即最新）
-#clone_or_pull https://github.com/xiaorouji/openwrt-passwall-packages.git  package/pw-packages
-#clone_or_pull https://github.com/xiaorouji/openwrt-passwall.git               package/pw-luci
+clone_or_pull https://github.com/xiaorouji/openwrt-passwall-packages.git  package/pw-packages
+clone_or_pull https://github.com/xiaorouji/openwrt-passwall.git               package/pw-luci
 
 # 1.3 二进制包全部塞进 luci 目录，用完即扔
-#cp -rf package/pw-packages/* package/pw-luci/
-#rm -rf package/pw-packages
+cp -rf package/pw-packages/* package/pw-luci/
+rm -rf package/pw-packages
 
 # 1.4 强制重新下载源码（保证每次编译都是最新 commit）
-#rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
+rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 
 ########### 6. 编译官方最新 sing-box（主仓 + 子模块） ###########
 ########### 6. 仅拉取 OpenWrt 部分（跳过移动端子模块） ###########
 # 6.1 删除旧包
-#rm -rf feeds/packages/net/sing-box package/sing-box
+rm -rf feeds/packages/net/sing-box package/sing-box
 
 ########### 2. 默认 IP / 主机名 / 固件名 / 系统版本 ###########
 # 2.1 默认 IP
