@@ -27,6 +27,7 @@ grep -q '^src-git istore' feeds.conf.default || {
 }
 ########### 1. 最新 PassWall（删-拉-覆盖法） ###########
 # 1.1 删光 lean 老包（确保官方包优先级最高）
+rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
 
 # 1.2 拉官方仓库 → package/ 目录（HEAD 即最新）
@@ -36,27 +37,6 @@ clone_or_pull https://github.com/xiaorouji/openwrt-passwall.git               pa
 # 1.3 二进制包全部塞进 luci 目录，用完即扔
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
-
-# ==================== 在这里粘贴新的修复代码 ====================
-# ==================== FINAL REPAIR SCRIPT ====================
-# Universally patch all Go packages to force module vendoring,
-# which resolves "no required module provides package" errors.
-echo "Patching ALL Go package Makefiles to force module vendoring..."
-
-# Use find to locate all Makefiles within the pw-luci directory
-find package/pw-luci -name 'Makefile' | while read -r makefile_path; do
-    # Check if the Makefile is for a Go package
-    if grep -q 'golang-package.mk' "$makefile_path"; then
-        # Check if the patch is already applied to avoid duplicates
-        if ! grep -q "GO_MOD_VENDOR:=1" "$makefile_path"; then
-            # Apply the patch by inserting the line after the golang-package.mk include
-            sed -i '/golang-package.mk/a GO_MOD_VENDOR:=1' "$makefile_path"
-            echo "  -> Patched Go Makefile: ${makefile_path}"
-        fi
-    fi
-done
-# =============================================================
-# =============================================================
 
 # 1.4 强制重新下载源码（保证每次编译都是最新 commit）
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
