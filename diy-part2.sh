@@ -66,7 +66,7 @@ sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-set
 popd
 
 ########### 3. SmartDNS 版本 bump（可选） ###########
-sed -i 's/1\.2024\.45/1.2024.46/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/b525170bfd627607ee5ac81f97ae0f1f4f087d6b/g; /^PKG_MIRROR_HASH/s/^/#/' \
+sed -i 's/1\.2024\.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f1912ab020ea9a60efac4732442f0bb7093f40b/g; /^PKG_MIRROR_HASH/s/^/#/' \
        feeds/packages/net/smartdns/Makefile
 
 ########### 4. 额外插件（幂等克隆） ###########
