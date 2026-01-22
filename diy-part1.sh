@@ -11,8 +11,8 @@ if command -v add_feed_unique >/dev/null 2>&1; then
     add_feed_unique smartdns_luci   'https://github.com/pymumu/luci-app-smartdns;lede'
 
     # 幂等添加官方 Passwall 源 (这会自动获得高优先级)
-    add_feed_unique passwall_packages 'https://github.com/xiaorouji/openwrt-passwall-packages;main'
-    add_feed_unique passwall_luci      'https://github.com/xiaorouji/openwrt-passwall;main'
+    add_feed_unique passwall_packages 'https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main'
+    add_feed_unique passwall_luci      'https://github.com/Openwrt-Passwall/openwrt-passwall.git;main'
 
     # 幂等添加官方 ChinaDNS-NG 源 (这也会自动获得高优先级)
     add_feed_unique chinadns_ng 'https://github.com/zfl9/chinadns-ng;main'
@@ -27,5 +27,5 @@ sed -i 's/KERNEL_PATCHVER:=.*/KERNEL_PATCHVER:=6.12/' target/linux/x86/Makefile
 # 在 feeds 安装完成后、make menuconfig 之前执行
 cat >> ./package/lean/passwall-force-latest.mk <<'EOF'
 # 强制使用上游最新 commit，不缓存旧版本
-PKG_SOURCE_VERSION:=$(shell git ls-remote https://github.com/xiaorouji/openwrt-passwall-packages HEAD | awk '{print $$1}')
+PKG_SOURCE_VERSION:=$(shell git ls-remote https://github.com/Openwrt-Passwall/openwrt-passwall-packages HEAD | awk '{print $$1}')
 EOF
