@@ -31,8 +31,8 @@ rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,micr
 rm -rf feeds/luci/applications/luci-app-passwall
 
 # 1.2 拉官方仓库 → package/ 目录（HEAD 即最新）
-clone_or_pull https://github.com/xiaorouji/openwrt-passwall-packages.git  package/pw-packages
-clone_or_pull https://github.com/xiaorouji/openwrt-passwall.git               package/pw-luci
+clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git  package/pw-packages
+clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git   package/pw-luci
 
 # 1.3 二进制包全部塞进 luci 目录，用完即扔
 cp -rf package/pw-packages/* package/pw-luci/
