@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt
+name: Build x86_64 OpII
 
 on:
   repository_dispatch:
@@ -21,36 +21,6 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    # =========================================================================================
-    # [更正 1] 移动 Checkout 步骤到最前面：先下载你的仓库配置
-    # =========================================================================================
-    - name: Checkout
-      uses: actions/checkout@main
-
-    # =========================================================================================
-    # [更正 2] 移动环境初始化步骤到此处：必须在磁盘扩容之前运行
-    # 解释：先安装好所有需要的 apt 软件，此时系统分区还有空间。安装完后再执行扩容。
-    # =========================================================================================
-    - name: Initialization environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-        bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
-        git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
-        libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz \
-        mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools \
-        libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip \
-        vim wget xmlto xxd zlib1g-dev python3-setuptools
-        sudo apt install scdoc
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/local/lib/android /opt/ghc /usr/share/dotnet /usr/local/graalvm /usr/local/.ghcup \
-        /usr/local/share/powershell /usr/local/share/chromium /usr/local/lib/node_modules
-        sudo timedatectl set-timezone "$TZ"
-        sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
-
     - name: Before freeing up disk space
       run: |
         echo "Before freeing up disk space"
@@ -58,9 +28,20 @@ jobs:
         df -hT
         echo "=============================================================================="
 
-    # =========================================================================================
-    # [更正 3] 依赖安装完成后，再执行磁盘清理和扩容
-    # =========================================================================================
+    # ============================================
+    # 【修正1】优化磁盘空间清理顺序，先执行 maximize-build-space
+    # ============================================
+    - name: Freeing up disk space (maximize build space first)
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 2048
+        swap-size-mb: 4096  # 【修正2】增加 swap 到 4GB，避免编译时内存不足
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
+
     - name: Optimize Disk Space
       uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
       with:
@@ -80,18 +61,7 @@ jobs:
         homebrew_clean: True
         npm_prune: True
         npm_clean: True
-        os_swap: True
-
-    - name: Freeing up disk space
-      uses: easimon/maximize-build-space@master
-      with:
-        root-reserve-mb: 2048
-        swap-size-mb: 1
-        remove-dotnet: 'true'
-        remove-android: 'true'
-        remove-haskell: 'true'
-        remove-codeql: 'true'
-        remove-docker-images: 'true'
+        os_swap: False  # 【修正3】禁用 swap 清理，因为上面已经创建了 swap
 
     - name: Free up disk space complete
       run: |
@@ -100,7 +70,87 @@ jobs:
         df -hT
         echo "=============================================================================="
 
-    # [注意] 原代码中的 Checkout 和 Initialization environment 已经被移动到了上面，此处已移除。
+    - name: Checkout
+      uses: actions/checkout@main
+
+    # ============================================
+    # 【修正4】关键修复：将 apt 缓存和安装目录移到工作分区
+    # ============================================
+    - name: Prepare apt directories on build volume
+      run: |
+        # 创建 apt 缓存目录到工作分区（大容量）
+        sudo mkdir -p ${{ github.workspace }}/.apt-cache/archives
+        sudo mkdir -p ${{ github.workspace }}/.apt-cache/lists
+        sudo chmod -R 777 ${{ github.workspace }}/.apt-cache
+        
+        # 备份原配置
+        sudo cp /etc/apt/apt.conf.d/99custom /etc/apt/apt.conf.d/99custom.bak 2>/dev/null || true
+        
+        # 配置 apt 使用新的缓存目录
+        echo 'Dir::Cache::Archives "${{ github.workspace }}/.apt-cache/archives";' | sudo tee /etc/apt/apt.conf.d/99custom
+        echo 'Dir::State::Lists "${{ github.workspace }}/.apt-cache/lists";' | sudo tee -a /etc/apt/apt.conf.d/99custom
+        echo 'Acquire::Retries "3";' | sudo tee -a /etc/apt/apt.conf.d/99custom
+        
+        # 创建软链接让 /var/cache/apt/archives 指向工作分区（兼容性处理）
+        sudo rm -rf /var/cache/apt/archives
+        sudo ln -s ${{ github.workspace }}/.apt-cache/archives /var/cache/apt/archives
+        
+        # 清理现有 apt 缓存
+        sudo apt-get clean
+        
+        echo "Apt cache configured:"
+        ls -la ${{ github.workspace }}/.apt-cache/
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        # ============================================
+        # 【修正5】分步安装依赖，避免一次性下载过多导致空间问题
+        # ============================================
+        
+        # 更新源列表
+        sudo -E apt-get -qq update
+        
+        # 先安装基础工具（分批安装）
+        echo "Installing basic tools..."
+        sudo -E apt-get -qq install --no-install-recommends -y \
+          build-essential ccache cmake curl git wget unzip xz-utils
+        
+        # 安装编译依赖（核心）
+        echo "Installing build dependencies..."
+        sudo -E apt-get -qq install --no-install-recommends -y \
+          ack antlr3 asciidoc autoconf automake autopoint binutils bison \
+          bzip2 cpio device-tree-compiler fastjar flex gawk gettext \
+          gcc-multilib g++-multilib gperf haveged help2man intltool \
+          libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev \
+          libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev \
+          libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano \
+          ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 \
+          python3-pyelftools libpython3-dev qemu-utils rsync scons \
+          squashfs-tools subversion swig texinfo uglifyjs upx-ucl vim \
+          xmlto xxd zlib1g-dev python3-setuptools
+        
+        # 安装额外工具
+        echo "Installing additional tools..."
+        sudo -E apt-get -qq install --no-install-recommends -y scdoc || true
+        
+        # 清理
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        
+        # 清理其他占用空间的路径
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/local/lib/android /opt/ghc \
+          /usr/share/dotnet /usr/local/graalvm /usr/local/.ghcup \
+          /usr/local/share/powershell /usr/local/share/chromium \
+          /usr/local/lib/node_modules
+        
+        sudo timedatectl set-timezone "$TZ"
+        sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
+        
+        # 显示最终磁盘使用情况
+        echo "Final disk usage:"
+        df -hT
 
     - name: Clone source code
       working-directory: ./
