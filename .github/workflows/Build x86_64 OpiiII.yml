@@ -142,6 +142,7 @@ jobs:
         run: |
           [ -e files ] && mv files openwrt/files
           [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+          sed -i 's/\r$//' openwrt/.config   # <-- 修复：移除 .config 文件中的 Windows 回车符
           sed -i 's/\r$//' $DIY_P2_SH
           chmod +x $DIY_P2_SH
           cd openwrt
