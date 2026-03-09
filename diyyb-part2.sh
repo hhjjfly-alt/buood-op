@@ -30,6 +30,11 @@ cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
 
+# 【新增终极修复】：物理级删除 SSR (ShadowsocksR) 源码，并从配置文件中强行剔除
+# 彻底解决源码 404 及与 OpenSSL 3 / Linux 6.12 不兼容导致的 Download 崩溃
+rm -rf package/pw-luci/shadowsocksr-libev
+sed -i '/ShadowsocksR_Libev/d' .config
+
 # 4. 拉取 sing-box 与基础网络配置修改
 rm -rf feeds/packages/net/sing-box package/sing-box
 clone_or_pull https://github.com/sbwml/openwrt-sing-box package/sing-box
@@ -51,18 +56,14 @@ git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-
 mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
 
-# 【绝对核心步骤】将 Makefile 中的相对路径强行修正为全局物理路径，杜绝 Download 崩溃！
 sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
 
-# 抓取与之匹配的精美 Web 控制界面
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
 rm -rf package/immortalwrt-luci
 
-# 物理删除界面包可能自带的僵尸核心，防止互相冲突
 rm -rf package/luci-app-dae/dae
 
-# 强制向 .config 动态注入 eBPF 工具链和内核宏
 echo "CONFIG_DEVEL=y" >> .config
 echo "CONFIG_BPF_TOOLCHAIN_HOST=y" >> .config
 # -------------------------------------------------------------
