@@ -23,17 +23,15 @@ echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.defa
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
 
+# 【新增绝杀】：彻底删除 istore_packages 源里陈旧且不兼容的 luci-app-zerotier，防止编译冲突！
+rm -rf feeds/istore_packages/luci-app-zerotier package/feeds/istore_packages/luci-app-zerotier
+
 # 3. 拉取 PassWall 及相关依赖
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/pw-packages
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/pw-luci
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
-
-# 【新增终极修复】：物理级删除 SSR (ShadowsocksR) 源码，并从配置文件中强行剔除
-# 彻底解决源码 404 及与 OpenSSL 3 / Linux 6.12 不兼容导致的 Download 崩溃
-rm -rf package/pw-luci/shadowsocksr-libev
-sed -i '/ShadowsocksR_Libev/d' .config
 
 # 4. 拉取 sing-box 与基础网络配置修改
 rm -rf feeds/packages/net/sing-box package/sing-box
@@ -49,9 +47,9 @@ clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
 # -------------------------------------------------------------
-# 🚨 终极环境修复：提取 ImmortalWrt 标准版 dae 并修正路径宏
+# 🚨 终极环境修复：提取 ImmortalWrt 标准版 dae 及 zerotier
 # -------------------------------------------------------------
-rm -rf package/dae package/luci-app-dae
+rm -rf package/dae package/luci-app-dae package/luci-app-zerotier
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
@@ -60,6 +58,8 @@ sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/gola
 
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
+# 【新增救场】：从 immortalwrt 官方提取最新、完美兼容 Master 的 zerotier 界面
+mv package/immortalwrt-luci/applications/luci-app-zerotier package/luci-app-zerotier
 rm -rf package/immortalwrt-luci
 
 rm -rf package/luci-app-dae/dae
