@@ -23,7 +23,7 @@ echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.defa
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
 
-# 【新增绝杀】：彻底删除 istore_packages 源里陈旧且不兼容的 luci-app-zerotier，防止编译冲突！
+# 彻底删除 istore_packages 源里陈旧且不兼容的 luci-app-zerotier
 rm -rf feeds/istore_packages/luci-app-zerotier package/feeds/istore_packages/luci-app-zerotier
 
 # 3. 拉取 PassWall 及相关依赖
@@ -32,6 +32,14 @@ clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/p
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
+
+# -------------------------------------------------------------
+# 【终极防线】防死灰复燃：物理删除 SSR，并强制关闭默认的客户端加载！
+# -------------------------------------------------------------
+rm -rf package/pw-luci/shadowsocksr-libev
+echo "# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Client is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Server is not set" >> .config
+# -------------------------------------------------------------
 
 # 4. 拉取 sing-box 与基础网络配置修改
 rm -rf feeds/packages/net/sing-box package/sing-box
@@ -58,7 +66,6 @@ sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/gola
 
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
-# 【新增救场】：从 immortalwrt 官方提取最新、完美兼容 Master 的 zerotier 界面
 mv package/immortalwrt-luci/applications/luci-app-zerotier package/luci-app-zerotier
 rm -rf package/immortalwrt-luci
 
