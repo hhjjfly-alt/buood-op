@@ -47,15 +47,20 @@ clone_or_pull https://github.com/lisaac/luci-app-dockerman.git luci-app-dockerma
 popd
 
 # -------------------------------------------------------------
-# 修复 dae：放弃长期未更新的 sbwml 仓库，改用 immortalwrt 维护的最新源码
+# 🚨 终极环境修复：专门应对 OpenWrt Master (Linux 6.12) 的 dae 编译链
 # -------------------------------------------------------------
-git clone --depth 1 https://github.com/immortalwrt/packages package/immortalwrt-packages
-cp -r package/immortalwrt-packages/net/dae package/dae
-rm -rf package/immortalwrt-packages
+# 1. 抓取由 dae 官方开发者 douglarek 专为 OpenWrt master 维护的最新核心包
+git clone --depth 1 https://github.com/douglarek/dae-openwrt package/dae
 
-git clone --depth 1 https://github.com/immortalwrt/luci package/immortalwrt-luci
-cp -r package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
-rm -rf package/immortalwrt-luci
+# 2. 抓取 sbwml 提供的精美 Web 控制界面
+git clone --depth 1 https://github.com/sbwml/luci-app-dae package/luci-app-dae
+
+# 3. 核心大清洗：物理删除界面自带的僵尸 dae 核心 (绝命拦截 404 报错的死灰复燃！)
+rm -rf package/luci-app-dae/dae
+
+# 4. 强制向 .config 动态注入 eBPF 工具链和内核宏 (缺少这个，C 代码根本无法编译成 BPF 模块)
+echo "CONFIG_DEVEL=y" >> .config
+echo "CONFIG_BPF_TOOLCHAIN_HOST=y" >> .config
 # -------------------------------------------------------------
 
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
