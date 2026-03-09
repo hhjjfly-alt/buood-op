@@ -30,17 +30,14 @@ clone_or_pull https://github.com/sbwml/openwrt-sing-box package/sing-box
 
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 
-# 修复了变量符号之间多余的空格
 sed -i 's/IMG_PREFIX:=.*/IMG_PREFIX:=full-$(shell date +%Y%m%d)-$(VERSION_DIST_SANITIZED)/g' include/image.mk
 
 pushd package/base-files/files/bin
 sed -i '/http/d' zzz-default-settings
 orig_version="$(grep DISTRIB_REVISION= zzz-default-settings | awk -F"'" '{print $2}')"
-# 修复了变量符号之间多余的空格
 sed -i "s/${orig_version}/${orig_version} ($(date +%Y-%m-%d))/g" zzz-default-settings
 popd
 
-# 修复了被错误截断成两行的问题，确保 sed 命令在同一行执行
 sed -i 's/1.2024.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f1912ab020ea9a60efac4732442f0bb7093f40b/g; /^PKG_MIRROR_HASH/s/^/#/' feeds/packages/net/smartdns/Makefile
 
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git  package/lucky
@@ -49,7 +46,18 @@ pushd package/luci/applications
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git luci-app-dockerman
 popd
 
-clone_or_pull https://github.com/sbwml/luci-app-dae package/dae
+# -------------------------------------------------------------
+# 修复 dae：放弃长期未更新的 sbwml 仓库，改用 immortalwrt 维护的最新源码
+# -------------------------------------------------------------
+git clone --depth 1 https://github.com/immortalwrt/packages package/immortalwrt-packages
+cp -r package/immortalwrt-packages/net/dae package/dae
+rm -rf package/immortalwrt-packages
+
+git clone --depth 1 https://github.com/immortalwrt/luci package/immortalwrt-luci
+cp -r package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
+rm -rf package/immortalwrt-luci
+# -------------------------------------------------------------
+
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 
 pushd feeds/packages/utils/cgroupfs-mount
@@ -69,5 +77,4 @@ popd
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
 
-# 修复了转义字符被异常空格打散导致终端显示乱码的问题
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ "' >> package/base-files/files/etc/profile
