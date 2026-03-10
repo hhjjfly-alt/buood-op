@@ -45,7 +45,7 @@ jobs:
           general_include: .+
           general_exclude: |-
             ^GCC$
-            ^G++$
+            ^G\+\+$
             Clang
             LLVM
           docker_include: .+
@@ -235,3 +235,4 @@ jobs:
           delete_tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
