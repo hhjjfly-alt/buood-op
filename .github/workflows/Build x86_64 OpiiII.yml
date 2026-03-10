@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt
+name: Build x86_64 OpenWrt yuanban
 
 on:
   repository_dispatch:
@@ -276,3 +276,4 @@ jobs:
           delete_tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
