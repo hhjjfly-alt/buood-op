@@ -83,17 +83,19 @@ clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
 clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
-# 10. 修复 FakeSIP
-echo "开始静态编译 FakeSIP..."
-clone_or_pull https://github.com/MikeWang000000/FakeSIP package/fakesip
-pushd package/fakesip
-go mod init fakesip || true
-go mod tidy || true
-# 移除了 2>/dev/null 错误掩盖，如果 Go 版本过低导致失败会在 Actions 日志中直接暴露，便于排查
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o fakesip
-mkdir -p ../base-files/files/usr/bin/
-cp fakesip ../base-files/files/usr/bin/
-popd
+# 10. 修复 FakeSIP (直接下载官方预编译 x86_64 二进制文件)
+echo "开始部署 FakeSIP 官方预编译版..."
+mkdir -p package/base-files/files/usr/bin/
+if wget -qO fakesip.tar.gz "https://github.com/MikeWang000000/FakeSIP/releases/latest/download/fakesip-linux-x86_64.tar.gz"; then
+    tar -xzf fakesip.tar.gz
+    # 将解压出的二进制文件直接放进固件的 usr/bin 目录
+    cp fakesip-linux-x86_64/fakesip package/base-files/files/usr/bin/
+    chmod +x package/base-files/files/usr/bin/fakesip
+    rm -rf fakesip.tar.gz fakesip-linux-x86_64
+    echo "FakeSIP 下载并部署完成！"
+else
+    echo "警告：FakeSIP 下载失败，将跳过此组件不影响整体编译。"
+fi
 
 # 11. 系统优化
 mkdir -p package/base-files/files/etc
@@ -101,3 +103,4 @@ echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sys
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ "' >> package/base-files/files/etc/profile
 
 echo "=== diyyb-part2.sh 执行完成 ==="
+
