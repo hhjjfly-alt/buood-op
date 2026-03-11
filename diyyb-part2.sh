@@ -1,7 +1,7 @@
 #!/bin/bash
 
-set -e  # 出错立即退出
-export GIT_TERMINAL_PROMPT=0  # 防止 git clone 遇到 404 弹密码导致报 128 错误崩溃
+set -e  
+export GIT_TERMINAL_PROMPT=0  
 
 clone_or_pull() {
     local repo=$1 dir=$2
@@ -30,33 +30,26 @@ rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,micr
 rm -rf feeds/luci/applications/luci-app-passwall
 rm -rf feeds/istore_packages/luci-app-zerotier package/feeds/istore_packages/luci-app-zerotier
 
-# 3. 拉取 PassWall (其内部包含 sing-box 的 OpenWrt 编译 Makefile)
+# 3. 拉取 PassWall 
 echo "拉取 PassWall..."
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/pw-packages
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/pw-luci
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
 rm -rf feeds/chinadns_ng/* feeds/passwall_packages/* feeds/passwall_luci/*
-
-# 删除 SSR
 rm -rf package/pw-luci/shadowsocksr-libev
 
-# ================= 核心修改区 =================
 # 4. 强制 sing-box 同步 SagerNet 官方最新源码版本
 echo "正在获取 SagerNet/sing-box 最新版本号..."
-# 通过 GitHub API 动态抓取最新 Release 版本号（去除前面的 'v'）
 SING_BOX_LATEST=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
 
 if [ -n "$SING_BOX_LATEST" ] && [ -f "package/pw-luci/sing-box/Makefile" ]; then
     echo "发现 sing-box 官方最新版本: $SING_BOX_LATEST"
-    # 替换 OpenWrt Makefile 里的版本号，并跳过哈希校验(强制拉取新源码)
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SING_BOX_LATEST/" package/pw-luci/sing-box/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/pw-luci/sing-box/Makefile
-    echo "已成功注入，本次编译将自动从官方拉取 v$SING_BOX_LATEST 的核心源码！"
 else
     echo "获取 sing-box 版本失败或 Makefile 不存在，将使用备用默认版本。"
 fi
-# ==============================================
 
 # 5. 修改 IP 地址
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
@@ -91,13 +84,15 @@ clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakeh
 clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
 # 10. 修复 FakeSIP
+echo "开始静态编译 FakeSIP..."
 clone_or_pull https://github.com/MikeWang000000/FakeSIP package/fakesip
 pushd package/fakesip
-go mod init fakesip 2>/dev/null || true
-go mod tidy 2>/dev/null || true
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o fakesip 2>/dev/null || true
+go mod init fakesip || true
+go mod tidy || true
+# 移除了 2>/dev/null 错误掩盖，如果 Go 版本过低导致失败会在 Actions 日志中直接暴露，便于排查
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o fakesip
 mkdir -p ../base-files/files/usr/bin/
-cp fakesip ../base-files/files/usr/bin/ 2>/dev/null || true
+cp fakesip ../base-files/files/usr/bin/
 popd
 
 # 11. 系统优化
