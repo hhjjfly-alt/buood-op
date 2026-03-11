@@ -92,49 +92,21 @@ clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
 clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
-# 10. 【彻底修复 FakeSIP 编译崩溃】使用符合 OpenWrt 规范的完整 Makefile
-echo "生成 FakeSIP 标准 OpenWrt 跨架构 Makefile..."
-mkdir -p package/fakesip
-cat > package/fakesip/Makefile <<'EOF'
-include $(TOPDIR)/rules.mk
+# 9. 其他组件与 ddns-go 修复
+clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
+clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
+clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
+clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
-PKG_NAME:=fakesip
-PKG_VERSION:=0.9.1
-PKG_RELEASE:=1
+# 【修复点 1：ddns-go 下载失败修复】
+echo "修复 ddns-go 下载哈希与版本..."
+DDNS_GO_LATEST=$(curl -s "https://api.github.com/repos/jeessy2/ddns-go/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
+if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
+    sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$DDNS_GO_LATEST/" package/ddns-go/ddns-go/Makefile
+    sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
+fi
 
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/MikeWang000000/FakeSIP.git
-PKG_SOURCE_VERSION:=v$(PKG_VERSION)
-PKG_MIRROR_HASH:=skip
-
-PKG_LICENSE:=GPL-3.0
-PKG_LICENSE_FILES:=LICENSE
-
-include $(INCLUDE_DIR)/package.mk
-
-define Package/fakesip
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Disguise UDP traffic as SIP protocol
-  URL:=https://github.com/MikeWang000000/FakeSIP
-  DEPENDS:=+libnetfilter-queue +libmnl +libnfnetlink +kmod-ipt-nfqueue +iptables-mod-nfqueue
-endef
-
-define Package/fakesip/description
-  Disguise your UDP traffic as SIP protocol to evade DPI detection, using Netfilter Queue.
-endef
-
-# 取消手动指定编译命令，依赖 OpenWrt 内置宏自动映射 C 编译器与动态库，杜绝缺少依赖包导致的报错
-
-define Package/fakesip/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/fakesip $(1)/usr/bin/
-endef
-
-$(eval $(call BuildPackage,fakesip))
-EOF
-
-# 11. 系统优化
+# 10. 系统优化 (原来是第 11 步)
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ "' >> package/base-files/files/etc/profile
