@@ -27,6 +27,7 @@ jobs:
           df -hT
           echo "=============================================================================="
 
+      # 仅保留这一个最强大、最稳定的磁盘空间扩展插件，提供约 101GB 的编译空间
       - name: Freeing up disk space (maximize build space first)
         uses: easimon/maximize-build-space@master
         with:
@@ -37,27 +38,6 @@ jobs:
           remove-haskell: 'true'
           remove-codeql: 'true'
           remove-docker-images: 'true'
-
-      - name: Optimize Disk Space
-        uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
-        with:
-          operate_sudo: True
-          general_include: .+
-          general_exclude: |-
-            ^GCC$
-            ^G\+\+$
-            Clang
-            LLVM
-          docker_include: .+
-          docker_prune: True
-          docker_clean: True
-          apt_prune: True
-          apt_clean: True
-          homebrew_prune: True
-          homebrew_clean: True
-          npm_prune: True
-          npm_clean: True
-          os_swap: False
 
       - name: Free up disk space complete
         run: |
@@ -81,8 +61,6 @@ jobs:
           sudo rm -rf /var/cache/apt/archives
           sudo ln -s ${{ github.workspace }}/.apt-cache/archives /var/cache/apt/archives
           sudo apt-get clean
-          echo "Apt cache configured:"
-          ls -la ${{ github.workspace }}/.apt-cache/
 
       - name: Initialization environment
         env:
@@ -106,7 +84,7 @@ jobs:
             xmlto xxd zlib1g-dev python3-setuptools
           echo "Installing additional tools..."
           sudo -E apt-get -qq install --no-install-recommends -y scdoc || true
-          # 安装 clang 和 llvm 用于编译 BPF，增加 dwarves 生成 BTF
+          # 安装 clang llvm 和 dwarves，为 BPF 和 BTF 编译提供底层支撑
           sudo -E apt-get -qq install --no-install-recommends -y clang llvm dwarves
           sudo -E apt-get -qq install --no-install-recommends -y golang-go
           sudo -E apt-get -qq autoremove --purge
@@ -117,8 +95,6 @@ jobs:
             /usr/local/lib/node_modules
           sudo timedatectl set-timezone "$TZ"
           sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
-          echo "Final disk usage:"
-          df -hT
 
       - name: Clone source code
         working-directory: ./
@@ -147,9 +123,7 @@ jobs:
           sed -i 's/\r$//' $DIY_P2_SH
           chmod +x $DIY_P2_SH
           cd openwrt
-          # 执行自定义脚本（不包含 make defconfig）
           $GITHUB_WORKSPACE/$DIY_P2_SH
-          # 验证架构配置
           echo "=== 初始架构配置 ==="
           grep -E "^CONFIG_TARGET" .config | head -10
 
@@ -157,10 +131,7 @@ jobs:
         id: package
         run: |
           cd openwrt
-          # 执行 make defconfig 并验证架构
           make defconfig
-          echo "=== make defconfig 后的架构 ==="
-          grep -E "^CONFIG_TARGET" .config | head -10
           echo "=== 目标设备 ==="
           grep "^CONFIG_TARGET.*DEVICE.*=y" .config || echo "使用默认 generic 设备"
           make download -j8
@@ -180,7 +151,6 @@ jobs:
           echo -e "$(nproc) thread compile"
           make -j$(nproc) || make -j1 || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
-          # 提取设备名称
           DEVICE_NAME=$(grep "^CONFIG_TARGET.*DEVICE.*=y" .config | sed -r 's/.*DEVICE_(.*)=y/\1/' | head -1)
           if [ -z "$DEVICE_NAME" ]; then
             DEVICE_NAME="generic"
@@ -205,34 +175,17 @@ jobs:
         if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
         run: |
           echo "=== 查找编译产物目录 ==="
-          # 查找实际的 targets 目录结构
           find openwrt/bin -type d -name "targets" 2>/dev/null || echo "未找到 targets 目录"
           ls -la openwrt/bin/ 2>/dev/null || echo "bin 目录不存在"
-          
-          # 进入 targets 目录
           cd openwrt/bin/targets/*/*/
-          echo "=== 当前目录: $PWD ==="
-          echo "=== 目录内容 ==="
-          ls -lah
-          
-          # 删除 packages 目录
           rm -rf packages
-          
-          # 保留固件文件，删除其他文件
-          echo "=== 清理非固件文件 ==="
           find . -type f -not \( -name "*.img.gz" -o -name "*.iso" -o -name "sha256sums" -o -name "*.manifest" \) -exec rm -f {} \;
           
-          echo "=== 清理后剩余文件 ==="
-          ls -lah
-          
-          # 检查是否有固件文件
           if [ -z "$(ls -A *.img.gz 2>/dev/null)" ]; then
             echo "警告: 未找到 .img.gz 固件文件！"
-            echo "目录内容:"
             ls -lah
             exit 1
           fi
-          
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
