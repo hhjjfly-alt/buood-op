@@ -20,47 +20,21 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Before freeing up disk space
-        run: |
-          echo "Before freeing up disk space"
-          echo "=============================================================================="
-          df -hT
-          echo "=============================================================================="
-
-      # 仅保留这一个最强大、最稳定的磁盘空间扩展插件，提供约 101GB 的编译空间
-      - name: Freeing up disk space (maximize build space first)
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 20480
-          swap-size-mb: 4096
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
-
-      - name: Free up disk space complete
-        run: |
-          echo "Free up disk space complete"
-          echo "=============================================================================="
-          df -hT
-          echo "=============================================================================="
-
+      # 升级为 v4，杜绝 Node.js 过期警告
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
-      - name: Prepare apt directories on build volume
-        run: |
-          sudo mkdir -p ${{ github.workspace }}/.apt-cache/archives
-          sudo mkdir -p ${{ github.workspace }}/.apt-cache/lists
-          sudo chmod -R 777 ${{ github.workspace }}/.apt-cache
-          sudo cp /etc/apt/apt.conf.d/99custom /etc/apt/apt.conf.d/99custom.bak 2>/dev/null || true
-          echo 'Dir::Cache::Archives "${{ github.workspace }}/.apt-cache/archives";' | sudo tee /etc/apt/apt.conf.d/99custom
-          echo 'Dir::State::Lists "${{ github.workspace }}/.apt-cache/lists";' | sudo tee -a /etc/apt/apt.conf.d/99custom
-          echo 'Acquire::Retries "3";' | sudo tee -a /etc/apt/apt.conf.d/99custom
-          sudo rm -rf /var/cache/apt/archives
-          sudo ln -s ${{ github.workspace }}/.apt-cache/archives /var/cache/apt/archives
-          sudo apt-get clean
+      # 【核心修复】使用最稳定暴力的全盘清理插件，在根目录腾出约 40GB 纯净空间
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false  # <--- 【关键修复】保留 4GB Swap 虚拟内存，坚决防止多线程编译时 OOM 内存溢出崩溃
 
       - name: Initialization environment
         env:
@@ -89,12 +63,10 @@ jobs:
           sudo -E apt-get -qq install --no-install-recommends -y golang-go
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
-          sudo rm -rf /etc/apt/sources.list.d/* /usr/local/lib/android /opt/ghc \
-            /usr/share/dotnet /usr/local/graalvm /usr/local/.ghcup \
-            /usr/local/share/powershell /usr/local/share/chromium \
-            /usr/local/lib/node_modules
           sudo timedatectl set-timezone "$TZ"
           sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
+          echo "=== 清理与环境安装完毕，当前磁盘状态 ==="
+          df -hT
 
       - name: Clone source code
         working-directory: ./
@@ -163,8 +135,9 @@ jobs:
         if: (!cancelled())
         run: df -hT
 
+      # 升级为 v4 稳定版
       - name: Upload bin directory
-        uses: actions/upload-artifact@main
+        uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
         with:
           name: OpenWrt_bin_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
@@ -189,8 +162,9 @@ jobs:
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
+      # 升级为 v4 稳定版
       - name: Upload firmware directory
-        uses: actions/upload-artifact@main
+        uses: actions/upload-artifact@v4
         if: steps.organize.outputs.status == 'success' && !cancelled()
         with:
           name: OpenWrt_firmware_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
@@ -205,8 +179,9 @@ jobs:
           touch release.txt
           echo "status=success" >> $GITHUB_OUTPUT
 
+      # 升级为 v2 稳定版
       - name: Upload firmware to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: steps.tag.outputs.status == 'success' && !cancelled()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -229,4 +204,3 @@ jobs:
           delete_tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
