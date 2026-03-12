@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
 
 env:
+  # 【修复提示】强制切换到 Node.js 24，彻底消除过期的黄色警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
@@ -20,11 +22,9 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      # 升级为 v4，杜绝 Node.js 过期警告
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 【核心修复】使用最稳定暴力的全盘清理插件，在根目录腾出约 40GB 纯净空间
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
@@ -34,7 +34,7 @@ jobs:
           haskell: true
           large-packages: true
           docker-images: true
-          swap-storage: false  # <--- 【关键修复】保留 4GB Swap 虚拟内存，坚决防止多线程编译时 OOM 内存溢出崩溃
+          swap-storage: false 
 
       - name: Initialization environment
         env:
@@ -58,7 +58,6 @@ jobs:
             xmlto xxd zlib1g-dev python3-setuptools
           echo "Installing additional tools..."
           sudo -E apt-get -qq install --no-install-recommends -y scdoc || true
-          # 安装 clang llvm 和 dwarves，为 BPF 和 BTF 编译提供底层支撑
           sudo -E apt-get -qq install --no-install-recommends -y clang llvm dwarves
           sudo -E apt-get -qq install --no-install-recommends -y golang-go
           sudo -E apt-get -qq autoremove --purge
@@ -135,7 +134,6 @@ jobs:
         if: (!cancelled())
         run: df -hT
 
-      # 升级为 v4 稳定版
       - name: Upload bin directory
         uses: actions/upload-artifact@v4
         if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
@@ -152,7 +150,9 @@ jobs:
           ls -la openwrt/bin/ 2>/dev/null || echo "bin 目录不存在"
           cd openwrt/bin/targets/*/*/
           rm -rf packages
-          find . -type f -not \( -name "*.img.gz" -o -name "*.iso" -o -name "sha256sums" -o -name "*.manifest" \) -exec rm -f {} \;
+          
+          # 【修复体积】仅保留压缩包及校验清单，剔除所有 .iso 等巨型冗余文件
+          find . -type f -not \( -name "*.img.gz" -o -name "sha256sums" -o -name "*.manifest" \) -exec rm -f {} \;
           
           if [ -z "$(ls -A *.img.gz 2>/dev/null)" ]; then
             echo "警告: 未找到 .img.gz 固件文件！"
@@ -162,7 +162,6 @@ jobs:
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
-      # 升级为 v4 稳定版
       - name: Upload firmware directory
         uses: actions/upload-artifact@v4
         if: steps.organize.outputs.status == 'success' && !cancelled()
@@ -179,7 +178,6 @@ jobs:
           touch release.txt
           echo "status=success" >> $GITHUB_OUTPUT
 
-      # 升级为 v2 稳定版
       - name: Upload firmware to release
         uses: softprops/action-gh-release@v2
         if: steps.tag.outputs.status == 'success' && !cancelled()
