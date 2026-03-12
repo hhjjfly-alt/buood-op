@@ -104,7 +104,7 @@ jobs:
         run: |
           cd openwrt/bin/targets/x86/64
           mkdir -p release_tmp
-          mv *squashfs-combined-efi.img.gz sha256sums 2>/dev/null || true
+          mv *squashfs-combined-efi.img.gz sha256sums release_tmp/ 2>/dev/null || true
           rm -rf ./*
           mv release_tmp/* ./
           rm -rf release_tmp
