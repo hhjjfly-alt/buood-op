@@ -128,20 +128,24 @@ jobs:
         if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
         run: |
           echo "=== 查找编译产物目录 ==="
-          cd openwrt/bin/targets/*/*/
+          cd openwrt/bin/targets/x86/64          # 改成固定路径，更稳定
           
           echo "=== 提取指定固件并清理其余冗余 ==="
           mkdir -p release_tmp
-          # 【核心修复】仅捞取目标格式与校验文件，抛弃其他所有文件，杜绝 1.6G 巨型包
-          mv ./*squashfs-combined-efi.img.gz ./release_tmp/ 2>/dev/null || true
-          mv ./sha256sums ./release_tmp/ 2>/dev/null || true
           
-          rm -rf ./*
-          mv ./release_tmp/* ./
-          rm -rf ./release_tmp
+          # 【核心修复】仅捞取目标格式与校验文件
+          mv *squashfs-combined-efi.img.gz release_tmp/ 2>/dev/null || true
+          mv sha256sums release_tmp/ 2>/dev/null || true
+          
+          # 关键修复：不要删 release_tmp 自己！
+          rm -rf !(release_tmp)
+          
+          mv release_tmp/* ./ 2>/dev/null || true
+          rm -rf release_tmp
           
           if [ -z "$(ls -A *.img.gz 2>/dev/null)" ]; then
             echo "警告: 未找到 squashfs-combined-efi.img.gz 固件文件！"
+            ls -la
             exit 1
           fi
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
@@ -187,3 +191,4 @@ jobs:
           delete_tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
