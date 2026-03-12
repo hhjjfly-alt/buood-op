@@ -9,9 +9,9 @@ env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: openwrtYB1.config
+  CONFIG_FILE: openwrtYB.config
   DIY_P1_SH: diyyb-part1.sh
-  DIY_P2_SH: diyyb1-part2.sh
+  DIY_P2_SH: diyyb-part2.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: false
@@ -104,7 +104,7 @@ jobs:
         run: |
           cd openwrt/bin/targets/x86/64
           mkdir -p release_tmp
-          mv *squashfs-combined-efi.img.gz sha256sums release_tmp/ 2>/dev/null || true
+          mv *squashfs-combined-efi.img.gz sha256sums 2>/dev/null || true
           rm -rf ./*
           mv release_tmp/* ./
           rm -rf release_tmp
