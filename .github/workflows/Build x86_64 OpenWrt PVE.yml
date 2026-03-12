@@ -101,13 +101,37 @@ jobs:
 
       - name: Organize files
         id: organize
+        if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
         run: |
+          echo "=== 查找编译产物目录 ==="
           cd openwrt/bin/targets/x86/64
+          
+          echo "=== 当前目录内容（调试）==="
+          ls -la
+          
+          echo "=== 提取指定固件并清理其余冗余 ==="
           mkdir -p release_tmp
-          mv *squashfs-combined-efi.img.gz sha256sums release_tmp/ 2>/dev/null || true
-          rm -rf ./*
-          mv release_tmp/* ./
+          
+          # 改进匹配（兼容自定义 IMG_PREFIX）
+          shopt -s nullglob
+          mv *squashfs-combined-efi.img.gz release_tmp/ 2>/dev/null || true
+          mv sha256sums release_tmp/ 2>/dev/null || true
+          
+          # 安全清理：只删除除 release_tmp 以外的所有文件/文件夹
+          shopt -s extglob
+          rm -rf !(release_tmp)
+          
+          # 移动回当前目录
+          mv release_tmp/* ./ 2>/dev/null || true
           rm -rf release_tmp
+          
+          # 最终检查
+          if [ -z "$(ls -A *.img.gz 2>/dev/null)" ]; then
+            echo "警告: 未找到 squashfs-combined-efi.img.gz 固件文件！"
+            echo "当前目录实际内容："
+            ls -la
+            exit 1
+          fi
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
