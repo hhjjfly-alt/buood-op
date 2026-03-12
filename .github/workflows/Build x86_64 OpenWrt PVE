@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt PVE (N6000)
+name: Build x86_64 OpenWrt PVE
 
 on:
   repository_dispatch:
