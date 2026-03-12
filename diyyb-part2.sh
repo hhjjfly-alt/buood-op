@@ -32,7 +32,7 @@ if ! grep -q '^src-git istore' feeds.conf.default; then
     ./scripts/feeds install -d y -p istore luci-app-store
 fi
 
-# 2. 清理默认依赖，为 PassWall 及其组件腾出干净空间
+# 2. 清理默认依赖
 echo "清理默认依赖..."
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
@@ -46,7 +46,7 @@ cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages
 rm -rf package/pw-luci/shadowsocksr-libev
 
-# 4. 强制 sing-box 自动同步官方最新版本号
+# 4. 强制 sing-box 同步官方最新版本
 echo "正在获取 SagerNet/sing-box 最新版本号..."
 SING_BOX_LATEST=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
 
@@ -54,17 +54,14 @@ if [ -n "$SING_BOX_LATEST" ] && [ -f "package/pw-luci/sing-box/Makefile" ]; then
     echo "发现 sing-box 官方最新版本: $SING_BOX_LATEST"
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SING_BOX_LATEST/" package/pw-luci/sing-box/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/pw-luci/sing-box/Makefile
-else
-    echo "获取 sing-box 版本失败或 Makefile 不存在，将使用备用默认版本。"
 fi
 
 # 5. 修改 IP 地址
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 
-# 6. 修复 smartdns (拉取最新的 luci-app-smartdns 放入 package 目录)
+# 6. 修复 smartdns 冲突
 echo "处理 smartdns 和 luci-app-smartdns..."
 sed -i 's/1.2024.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f1912ab020ea9a60efac4732442f0bb7093f40b/g; /^PKG_MIRROR_HASH/s/^/#/' feeds/packages/net/smartdns/Makefile
-# 【修复点】官方 OpenWrt master 源码必须使用 JS 版本的 luci-app-smartdns 的 master 分支，直接放在 package 目录下
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 
@@ -86,19 +83,12 @@ mv package/immortalwrt-luci/applications/luci-app-zerotier package/luci-app-zero
 rm -rf package/immortalwrt-luci
 rm -rf package/luci-app-dae/dae
 
-# 9. 其他组件
-clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
-clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
-clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
-clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
-
 # 9. 其他组件与 ddns-go 修复
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
 clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
-# 【修复点 1：ddns-go 下载失败修复】
 echo "修复 ddns-go 下载哈希与版本..."
 DDNS_GO_LATEST=$(curl -s "https://api.github.com/repos/jeessy2/ddns-go/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
 if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
@@ -106,9 +96,27 @@ if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
-# 10. 系统优化 (原来是第 11 步)
+# 10. 系统优化
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ "' >> package/base-files/files/etc/profile
+
+# ================= 核心修复：固件名与系统版本个性化定制 =================
+# 11. 固件名加前缀和日期 (下载的压缩包名称)
+sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-$(date +%Y%m%d)-x86-64/g" include/image.mk
+
+# 12. 系统版本加日期 (兼容官方 master 的注入方式)
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/99-custom-version <<EOF
+#!/bin/sh
+# 修改 LuCI 页面中的发布说明和版本号，追加编译日期
+sed -i "s/DISTRIB_DESCRIPTION='.*'/DISTRIB_DESCRIPTION='OpenWrt \$(date +%Y-%m-%d)'/g" /etc/openwrt_release
+sed -i "s/DISTRIB_REVISION='.*'/DISTRIB_REVISION='R\$(date +%Y.%m.%d)'/g" /etc/openwrt_release
+# 执行后自毁
+rm -f /etc/uci-defaults/99-custom-version
+exit 0
+EOF
+chmod +x package/base-files/files/etc/uci-defaults/99-custom-version
+# =========================================================================
 
 echo "=== diyyb-part2.sh 执行完成 ==="
