@@ -5,7 +5,6 @@ on:
   workflow_dispatch:
 
 env:
-  # 【修复提示】强制切换到 Node.js 24，彻底消除过期的黄色警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: master
@@ -41,10 +40,8 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo -E apt-get -qq update
-          echo "Installing basic tools..."
           sudo -E apt-get -qq install --no-install-recommends -y \
             build-essential ccache cmake curl git wget unzip xz-utils
-          echo "Installing build dependencies..."
           sudo -E apt-get -qq install --no-install-recommends -y \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison \
             bzip2 cpio device-tree-compiler fastjar flex gawk gettext \
@@ -56,16 +53,12 @@ jobs:
             python3-pyelftools libpython3-dev qemu-utils rsync scons \
             squashfs-tools subversion swig texinfo uglifyjs upx-ucl vim \
             xmlto xxd zlib1g-dev python3-setuptools
-          echo "Installing additional tools..."
           sudo -E apt-get -qq install --no-install-recommends -y scdoc || true
-          sudo -E apt-get -qq install --no-install-recommends -y clang llvm dwarves
-          sudo -E apt-get -qq install --no-install-recommends -y golang-go
+          sudo -E apt-get -qq install --no-install-recommends -y clang llvm dwarves golang-go
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
           sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
-          echo "=== 清理与环境安装完毕，当前磁盘状态 ==="
-          df -hT
 
       - name: Clone source code
         working-directory: ./
@@ -95,25 +88,15 @@ jobs:
           chmod +x $DIY_P2_SH
           cd openwrt
           $GITHUB_WORKSPACE/$DIY_P2_SH
-          echo "=== 初始架构配置 ==="
-          grep -E "^CONFIG_TARGET" .config | head -10
 
       - name: Download package
         id: package
         run: |
           cd openwrt
           make defconfig
-          echo "=== 目标设备 ==="
-          grep "^CONFIG_TARGET.*DEVICE.*=y" .config || echo "使用默认 generic 设备"
           make download -j8
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
-
-      - name: Clean build environment
-        run: |
-          cd openwrt
-          make clean
-          echo "Build environment cleaned."
 
       - name: Compile the firmware
         id: compile
@@ -128,7 +111,6 @@ jobs:
           fi
           echo "DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
           echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-          echo "编译完成的设备: $DEVICE_NAME"
 
       - name: Check space usage
         if: (!cancelled())
@@ -146,17 +128,20 @@ jobs:
         if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
         run: |
           echo "=== 查找编译产物目录 ==="
-          find openwrt/bin -type d -name "targets" 2>/dev/null || echo "未找到 targets 目录"
-          ls -la openwrt/bin/ 2>/dev/null || echo "bin 目录不存在"
           cd openwrt/bin/targets/*/*/
-          rm -rf packages
           
-          # 【修复体积】仅保留压缩包及校验清单，剔除所有 .iso 等巨型冗余文件
-          find . -type f -not \( -name "*.img.gz" -o -name "sha256sums" -o -name "*.manifest" \) -exec rm -f {} \;
+          echo "=== 提取指定固件并清理其余冗余 ==="
+          mkdir -p release_tmp
+          # 【核心修复】仅捞取目标格式与校验文件，抛弃其他所有文件，杜绝 1.6G 巨型包
+          mv ./*squashfs-combined-efi.img.gz ./release_tmp/ 2>/dev/null || true
+          mv ./sha256sums ./release_tmp/ 2>/dev/null || true
+          
+          rm -rf ./*
+          mv ./release_tmp/* ./
+          rm -rf ./release_tmp
           
           if [ -z "$(ls -A *.img.gz 2>/dev/null)" ]; then
-            echo "警告: 未找到 .img.gz 固件文件！"
-            ls -lah
+            echo "警告: 未找到 squashfs-combined-efi.img.gz 固件文件！"
             exit 1
           fi
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
