@@ -25,22 +25,42 @@ clone_or_pull() {
 }
 
 echo "=== 开始执行 diyyb1-part2.sh ==="
-
-# 1. 配置我个人的专属 iStore 源（已在独立仓库中修复 apk 兼容性）
-echo "配置专属 iStore 源..."
-# 请务必把下面的“你的用户名”替换为你的真实 GitHub 用户名！
+# =================================================================
+# 1. 终极 A 方案：无视作者排版习惯的“降维打击”修复法
+# =================================================================
+echo "配置并修复官方 iStore 源..."
 if ! grep -q '^src-git istore ' feeds.conf.default; then
-    echo 'src-git istore https://github.com/hhjjfly-alt/istore;main' >> feeds.conf.default
+    echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
 fi
 if ! grep -q '^src-git istore_packages ' feeds.conf.default; then
-    echo 'src-git istore_packages https://github.com/hhjjfly-alt/istore-packages;main' >> feeds.conf.default
+    echo 'src-git istore_packages https://github.com/linkease/istore-packages;main' >> feeds.conf.default
 fi
 
+# 第一步：只拉取代码，先不安装
 ./scripts/feeds update istore istore_packages
-./scripts/feeds install -d y -p istore luci-app-store
 
-# 注意：之前的那些 find ... sed 替换命令现在全部删掉，不需要了！
-# 2. 清理默认依赖（去掉了上一版误删 ZeroTier 的指令）
+echo "执行终极兼容性净化手术..."
+
+# 第一招：无差别摧毁所有带符号的依赖限制
+# 效果：luci-lib-taskd (>= 1.0.3-1) -> luci-lib-taskd
+find feeds/istore feeds/istore_packages -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} +
+
+# 第二招：彻底消灭 PKG_VERSION 和 PKG_RELEASE 中的连字符 (-)
+# 效果：PKG_VERSION:=1.3.0-1 -> PKG_VERSION:=1.3.0.1
+find feeds/istore feeds/istore_packages -type f -name "Makefile" -exec sed -i '/^[[:space:]]*PKG_VERSION[[:space:]]*[=:]/ s/-/\./g' {} +
+find feeds/istore feeds/istore_packages -type f -name "Makefile" -exec sed -i '/^[[:space:]]*PKG_RELEASE[[:space:]]*[=:]/ s/-/\./g' {} +
+
+# 第三招：智能切除版本号前缀的字母 v 或 V
+# 效果：PKG_VERSION:=v1.3.0 -> PKG_VERSION:=1.3.0
+find feeds/istore feeds/istore_packages -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/' {} +
+
+echo "净化完成！"
+
+# 第二步：使用净化后的干净代码进行安装
+./scripts/feeds install -d y -p istore luci-app-store
+# =================================================================
+
+# 2. 清理默认依赖
 echo "清理默认依赖..."
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
@@ -75,7 +95,7 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
-# 8. 拉取 dae（已修复：保留官方兼容的 ZeroTier）
+# 8. 拉取 dae（保留官方兼容的 ZeroTier）
 echo "拉取 dae..."
 rm -rf package/dae package/luci-app-dae
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
@@ -111,12 +131,10 @@ sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" includ
 
 # 12. 强制剥离 Transmission 与注入中文配置
 echo "清理 Transmission 并在系统层面强制开启中文..."
-# 针对你 .config 里可能残留的设置进行精准打击
 sed -i '/luci-app-transmission/d' .config || true
 sed -i '/luci-i18n-transmission/d' .config || true
 sed -i '/transmission-daemon/d' .config || true
 
-# 注入全局中文包配置（解决 LuCI 基础框架无中文的问题）
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
@@ -127,7 +145,6 @@ cat > package/base-files/files/etc/uci-defaults/99-custom-version <<'EOF'
 DATE=$(date +"%Y-%m-%d")
 sed -i "s/DISTRIB_DESCRIPTION='.*'/DISTRIB_DESCRIPTION='OpenWrt PVE-N6000 ${DATE}'/g" /etc/openwrt_release
 sed -i "s/DISTRIB_REVISION='.*'/DISTRIB_REVISION='R${DATE}'/g" /etc/openwrt_release
-# 强制设定首次开机为中文
 uci set luci.main.lang='zh_cn'
 uci commit luci
 rm -f /etc/uci-defaults/99-custom-version
