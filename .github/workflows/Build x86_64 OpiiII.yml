@@ -129,26 +129,28 @@ jobs:
         run: |
           echo "=== 查找编译产物目录 ==="
           cd openwrt/bin/targets/x86/64
-          
+         
           echo "=== 当前目录内容（调试）==="
           ls -la
-          
+         
           echo "=== 提取指定固件并清理其余冗余 ==="
           mkdir -p release_tmp
-          
+         
           # 改进匹配（兼容自定义 IMG_PREFIX）
-          shopt -s nullglob
-          mv *squashfs-combined-efi.img.gz release_tmp/ 2>/dev/null || true
-          mv sha256sums release_tmp/ 2>/dev/null || true
-          
-          # 安全清理：只删除除 release_tmp 以外的所有文件/文件夹
-          shopt -s extglob
-          rm -rf !(release_tmp)
-          
+          for f in *squashfs-combined-efi.img.gz; do
+            [ -e "$f" ] && mv "$f" release_tmp/
+          done
+          [ -f sha256sums ] && mv sha256sums release_tmp/
+         
+          # 安全清理：删除除 release_tmp 以外的所有文件/文件夹
+          for item in *; do
+            [ "$item" != "release_tmp" ] && rm -rf "$item"
+          done
+         
           # 移动回当前目录
           mv release_tmp/* ./ 2>/dev/null || true
           rm -rf release_tmp
-          
+         
           # 最终检查
           if [ -z "$(ls -A *.img.gz 2>/dev/null)" ]; then
             echo "警告: 未找到 squashfs-combined-efi.img.gz 固件文件！"
@@ -199,5 +201,6 @@ jobs:
           delete_tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
 
