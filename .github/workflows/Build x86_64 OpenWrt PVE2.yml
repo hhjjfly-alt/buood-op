@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt 2N6000
+name: Build x86_64 OpenWrt PVE (N6000)
 
 on:
   repository_dispatch:
@@ -50,7 +50,7 @@ jobs:
             libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip \
             p7zip-full patch pkgconf python3 python3-pyelftools qemu-utils \
             scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl vim xmlto \
-            xxd zlib1g-dev python3-setuptools scdoc
+            xxd zlib1g-dev python3-setuptools scdoc clang llvm dwarves golang-go  # 修改：恢复 clang、llvm、dwarves、golang-go 以支持 bpf-headers 和 Go 相关包编译
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
