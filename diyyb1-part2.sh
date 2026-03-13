@@ -26,20 +26,20 @@ clone_or_pull() {
 
 echo "=== 开始执行 diyyb1-part2.sh ==="
 
-# 1. 确保 iStore 源被正确拉取与修复 (修复主分支 apk 格式报错导致无菜单的 Bug)
-echo "配置并修复 iStore..."
+# 1. 配置我个人的专属 iStore 源（已在独立仓库中修复 apk 兼容性）
+echo "配置专属 iStore 源..."
+# 请务必把下面的“你的用户名”替换为你的真实 GitHub 用户名！
 if ! grep -q '^src-git istore ' feeds.conf.default; then
-    echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+    echo 'src-git istore https://github.com/hhjjfly-alt/istore;main' >> feeds.conf.default
 fi
 if ! grep -q '^src-git istore_packages ' feeds.conf.default; then
-    echo 'src-git istore_packages https://github.com/linkease/istore-packages;main' >> feeds.conf.default
+    echo 'src-git istore_packages https://github.com/hhjjfly-alt/istore-packages;main' >> feeds.conf.default
 fi
+
 ./scripts/feeds update istore istore_packages
 ./scripts/feeds install -d y -p istore luci-app-store
-# 核心修复：去除 Makefile 中不兼容 apk 包管理器的版本号限制 (如: >=1.0.3-1)
-find feeds/istore feeds/istore_packages -type f -name "Makefile" -exec sed -i -E 's/\(>=[0-9\.\-]+\)//g' {} +
-find feeds/istore feeds/istore_packages -type f -name "Makefile" -exec sed -i -E 's/>=[0-9\.\-]+//g' {} +
 
+# 注意：之前的那些 find ... sed 替换命令现在全部删掉，不需要了！
 # 2. 清理默认依赖（去掉了上一版误删 ZeroTier 的指令）
 echo "清理默认依赖..."
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
