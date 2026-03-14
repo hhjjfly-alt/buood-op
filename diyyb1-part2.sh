@@ -183,5 +183,31 @@ echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
 sed -i '/CONFIG_PACKAGE_blkid/d' .config
 echo "CONFIG_PACKAGE_blkid=y" >> .config
 
+# 注入首次开机自动配置 sda3 挂载的脚本
+cat > package/base-files/files/etc/uci-defaults/99-auto-mount <<'EOF'
+#!/bin/sh
+# 1. 自动生成 fstab 挂载配置
+uci -q delete fstab.sda3
+uci set fstab.sda3="mount"
+uci set fstab.sda3.device="/dev/sda3"
+uci set fstab.sda3.target="/mnt/sda3"
+uci set fstab.sda3.fstype="ext4"
+uci set fstab.sda3.options="rw,relatime"
+uci set fstab.sda3.enabled="1"
+uci commit fstab
+
+# 2. 启用自动挂载服务并立即挂载
+/etc/init.d/fstab enable
+block mount
+
+# 3. 确保 Docker 在挂载完成后重启，认出真实数据
+/etc/init.d/dockerd restart
+
+# 清理自身，深藏功与名
+rm -f /etc/uci-defaults/99-auto-mount
+exit 0
+EOF
+chmod +x package/base-files/files/etc/uci-defaults/99-auto-mount
+
 echo "=== diyyb1-part2.sh 执行完成 ==="
 
