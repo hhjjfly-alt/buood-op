@@ -1,5 +1,5 @@
 #!/bin/bash
-# diyyb1-part2.sh
+# diyyb1-part2.sh (Master 最新版 + 全包容终极净化)
 
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -32,7 +32,7 @@ rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,micr
 rm -rf feeds/luci/applications/luci-app-passwall
 
 # =================================================================
-# 2. 批量拉取所有第三方源码（补齐缺失的 AdGuardHome 和 Diskman）
+# 2. 批量拉取所有第三方源码（包含所有你点的菜单）
 # =================================================================
 echo "拉取第三方源码..."
 # PassWall
@@ -64,7 +64,7 @@ clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
 clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
-# 【新增】AdGuardHome 和 Diskman 的源码拉取
+# AdGuardHome 和 Diskman
 clone_or_pull https://github.com/rufengsuixing/luci-app-adguardhome.git package/luci-app-adguardhome
 clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
@@ -80,14 +80,14 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 # =================================================================
 echo "正在净化第三方 package 的版本号..."
 
-# 定义所有拉取下来的第三方插件目录
-THIRD_PARTY_DIRS="package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-adguardhome package/luci-app-diskman"
+# 【核心修复点】：已经把 feeds/istore 和 feeds/istore_packages 加入净化大名单！
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-adguardhome package/luci-app-diskman"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
-        # 去除带符号的依赖限制
+        # 去除带符号的依赖限制 (解决菜单不显示)
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} + || true
-        # 将版本号和发布号里的连字符 - 替换成点 .
+        # 将版本号和发布号里的连字符 - 替换成点 . (解决 apk 崩溃)
         find "$dir" -type f -name "Makefile" -exec sed -i '/^[[:space:]]*PKG_VERSION[[:space:]]*[=:]/ s/-/\./g' {} + || true
         find "$dir" -type f -name "Makefile" -exec sed -i '/^[[:space:]]*PKG_RELEASE[[:space:]]*[=:]/ s/-/\./g' {} + || true
         # 去除版本号前的 v
@@ -95,6 +95,9 @@ for dir in $THIRD_PARTY_DIRS; do
     fi
 done
 echo "净化完成！"
+
+# 二次触发 iStore 组件软链接 (确保合规后能挂载上，尽管目前 Master 依然无法使用它)
+./scripts/feeds install -d y -p istore luci-app-store
 
 # =================================================================
 # 4. 其他系统优化与动态配置
@@ -124,7 +127,7 @@ sed -i '/luci-app-transmission/d' .config || true
 sed -i '/luci-i18n-transmission/d' .config || true
 sed -i '/transmission-daemon/d' .config || true
 
-# 强行删除 iStore，避免因 opkg 依赖缺失导致编译失败或产生空壳
+# 强行删除 iStore，避免因 opkg 依赖缺失导致产生空壳
 sed -i '/luci-app-store/d' .config || true
 sed -i '/luci-i18n-store/d' .config || true
 
