@@ -142,14 +142,24 @@ sed -i '/luci-i18n-store/d' .config || true
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
+# =================================================================
+# 5. 固件版本号与真实编译日期注入 (彻底修复变量未展开 Bug)
+# =================================================================
+echo "注入专属编译日期与版本号..."
+
+COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
+COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
+
 mkdir -p package/base-files/files/etc/uci-defaults
-cat > package/base-files/files/etc/uci-defaults/99-custom-version <<'EOF'
+# 注意：此处的 EOF 去掉了单引号，且下面变量去掉了反斜杠，确保在 Actions 运行时立刻写入真实时间
+cat > package/base-files/files/etc/uci-defaults/99-custom-version <<EOF
 #!/bin/sh
-DATE=$(date +"%Y-%m-%d")
-sed -i "s/DISTRIB_DESCRIPTION='.*'/DISTRIB_DESCRIPTION='OpenWrt PVE-N6000 ${DATE}'/g" /etc/openwrt_release
-sed -i "s/DISTRIB_REVISION='.*'/DISTRIB_REVISION='R${DATE}'/g" /etc/openwrt_release
+sed -i "s/DISTRIB_REVISION='.*'/DISTRIB_REVISION='R${COMPILE_DATE_SHORT} (${COMPILE_DATE_LONG})'/g" /etc/openwrt_release
+sed -i "s/DISTRIB_DESCRIPTION='.*'/DISTRIB_DESCRIPTION='OpenWrt PVE-N6000'/g" /etc/openwrt_release
+
 uci set luci.main.lang='zh_cn'
 uci commit luci
+
 rm -f /etc/uci-defaults/99-custom-version
 exit 0
 EOF
