@@ -1,5 +1,5 @@
 #!/bin/bash
-# diyyb1-part2.sh (Master 终极防崩版 - 严格正则顺序修正)
+# diyyb1-part2.sh (Master 终极典藏版 - 显微镜级除雷)
 
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -60,7 +60,6 @@ rm -rf package/immortalwrt-luci package/luci-app-dae/dae
 
 # 【核心修复】：修复 luci-app-dae 的 luci.mk 相对路径依赖（菜单消失的唯一元凶！）
 sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
-rm -rf package/immortalwrt-luci package/luci-app-dae/dae
 
 # DDNS-GO, Fakehttp & Geodata
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
@@ -89,13 +88,10 @@ for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
         # 步骤 A：彻底清除带符号的依赖限制
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} + || true
-        
-        # 步骤 B：先去掉版本号最前面的字母 v 或 V (必须在数字截断前执行)
+        # 步骤 B：先去掉版本号最前面的字母 v 或 V
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/g' {} + || true
-        
-        # 步骤 C：一刀切截断法，砍掉 -1、-rc1 等后缀，只保留纯数字和点
+        # 步骤 C：一刀切截断法，保留纯数字和点
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9\.]+).*/\1/g' {} + || true
-        
         # 步骤 D：PKG_RELEASE 严格截断为纯数字
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*[0-9]+).*/\1/g' {} + || true
     fi
@@ -130,20 +126,22 @@ echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sys
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ "' >> package/base-files/files/etc/profile
 sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" include/image.mk
 
-echo "执行底层剥离..."
-sed -i '/luci-app-transmission/d' .config || true
-sed -i '/luci-i18n-transmission/d' .config || true
-sed -i '/transmission-daemon/d' .config || true
+echo "执行底层剥离与配置注入..."
+touch .config # 核心护城河：强行生成配置底文件，防止后续 sed 报错
+
+sed -i '/luci-app-transmission/d' .config
+sed -i '/luci-i18n-transmission/d' .config
+sed -i '/transmission-daemon/d' .config
 
 # 必须删除，否则 opkg 依赖缺失会导致全局崩溃
-sed -i '/luci-app-store/d' .config || true
-sed -i '/luci-i18n-store/d' .config || true
+sed -i '/luci-app-store/d' .config
+sed -i '/luci-i18n-store/d' .config
 
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
 # =================================================================
-# 5. 固件版本号与真实编译日期注入 (彻底修复变量未展开 Bug)
+# 5. 固件版本号与真实编译日期注入
 # =================================================================
 echo "注入专属编译日期与版本号..."
 
@@ -151,7 +149,6 @@ COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
 COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
 
 mkdir -p package/base-files/files/etc/uci-defaults
-# 注意：此处的 EOF 去掉了单引号，且下面变量去掉了反斜杠，确保在 Actions 运行时立刻写入真实时间
 cat > package/base-files/files/etc/uci-defaults/99-custom-version <<EOF
 #!/bin/sh
 sed -i "s/DISTRIB_REVISION='.*'/DISTRIB_REVISION='R${COMPILE_DATE_SHORT} (${COMPILE_DATE_LONG})'/g" /etc/openwrt_release
@@ -166,11 +163,12 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-version
 
 # =================================================================
-# 6. 强制编译磁盘挂载核心组件 (解决 Docker 数据盘不挂载问题)
+# 6. 强制编译磁盘挂载核心组件 (自动修复 Docker 数据盘不挂载)
 # =================================================================
 echo "注入磁盘挂载与 ext4 驱动组件..."
 
-# 删除可能存在的旧配置，强制设为 y (编译进系统)
+# 保证配置落盘
+touch .config
 sed -i '/CONFIG_PACKAGE_block-mount/d' .config
 echo "CONFIG_PACKAGE_block-mount=y" >> .config
 
@@ -200,8 +198,8 @@ uci commit fstab
 /etc/init.d/fstab enable
 block mount
 
-# 3. 确保 Docker 在挂载完成后重启，认出真实数据
-/etc/init.d/dockerd restart
+# 3. 探针保护重启：只在 Docker 存在时才重启，防止初始化卡死
+[ -x /etc/init.d/dockerd ] && /etc/init.d/dockerd restart || true
 
 # 清理自身，深藏功与名
 rm -f /etc/uci-defaults/99-auto-mount
@@ -209,5 +207,4 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-auto-mount
 
-echo "=== diyyb1-part2.sh 执行完成 ==="
-
+echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
