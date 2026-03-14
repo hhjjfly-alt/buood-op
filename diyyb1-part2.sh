@@ -165,4 +165,23 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-version
 
+# =================================================================
+# 6. 强制编译磁盘挂载核心组件 (解决 Docker 数据盘不挂载问题)
+# =================================================================
+echo "注入磁盘挂载与 ext4 驱动组件..."
+
+# 删除可能存在的旧配置，强制设为 y (编译进系统)
+sed -i '/CONFIG_PACKAGE_block-mount/d' .config
+echo "CONFIG_PACKAGE_block-mount=y" >> .config
+
+sed -i '/CONFIG_PACKAGE_kmod-fs-ext4/d' .config
+echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
+
+sed -i '/CONFIG_PACKAGE_e2fsprogs/d' .config
+echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
+
+sed -i '/CONFIG_PACKAGE_blkid/d' .config
+echo "CONFIG_PACKAGE_blkid=y" >> .config
+
 echo "=== diyyb1-part2.sh 执行完成 ==="
+
