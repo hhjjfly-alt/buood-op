@@ -51,10 +51,15 @@ rm -rf package/dae package/luci-app-dae
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
+# 修复 dae 的 golang 依赖路径
 sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
 
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
+rm -rf package/immortalwrt-luci package/luci-app-dae/dae
+
+# 【核心修复】：修复 luci-app-dae 的 luci.mk 相对路径依赖（菜单消失的唯一元凶！）
+sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
 rm -rf package/immortalwrt-luci package/luci-app-dae/dae
 
 # DDNS-GO, Fakehttp & Geodata
