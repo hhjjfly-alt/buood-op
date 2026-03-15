@@ -140,7 +140,6 @@ sed -i '/luci-i18n-store/d' .config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
-# =================================================================
 # 5. 固件版本号与真实编译日期注入
 # =================================================================
 echo "注入专属编译日期与版本号..."
@@ -161,7 +160,6 @@ rm -f /etc/uci-defaults/99-custom-version
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-version
-
 # =================================================================
 # 6. 强制编译磁盘挂载核心组件 (自动修复 Docker 数据盘不挂载)
 # =================================================================
