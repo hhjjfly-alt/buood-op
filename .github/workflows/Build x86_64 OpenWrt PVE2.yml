@@ -105,10 +105,18 @@ jobs:
       - name: Compile the firmware
         run: |
           cd openwrt
-          # 指定 ccache 工作目录，确保命中缓存
+          
+          # ================= 新增：防止 ccache 撑爆 GitHub 10G 限制 =================
           export CCACHE_DIR=$GITHUB_WORKSPACE/openwrt/.ccache
           mkdir -p $CCACHE_DIR
+          # 强制限制 ccache 体积最大为 2.5GB（最合理的阈值），旧缓存自动淘汰
+          ccache --max-size=2.5G
+          # 打印缓存当前状态，方便日志排错
+          ccache -s
+          # =====================================================================
+          
           echo -e "$(nproc) thread compile"
+          # 指定 CXX 走 ccache 代理
           make -j$(nproc) || make -j1 || make -j1 V=s
           DEVICE_NAME="generic"
           echo "DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
