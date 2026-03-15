@@ -141,30 +141,19 @@ echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
 # =================================================================
-# 5. 固件版本号与真实编译日期注入 (防撞车终极判定)
+# 5. 固件版本号与真实编译日期注入 (核弹级终极修复：全局变量直接夺权)
 # =================================================================
 echo "注入专属编译日期与版本号..."
 
 COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
 COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
-CUSTOM_REVISION="R${COMPILE_DATE_SHORT} (${COMPILE_DATE_LONG})"
-CUSTOM_DESCRIPTION="OpenWrt PVE-N6000"
 
-# 1. 绝对防御：如果文件存在才执行 sed 替换，避免触发 set -e 导致编译崩溃
-if [ -f package/base-files/files/etc/openwrt_release ]; then
-    sed -i "s/DISTRIB_REVISION='%R'/DISTRIB_REVISION='${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
-    sed -i "s/DISTRIB_DESCRIPTION='%D %V %C'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
-    sed -i "s/DISTRIB_DESCRIPTION='%D %V'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
-fi
+# 1. 无视一切模板与格式变化，直接在全局 version.mk 最末尾强行覆盖底层变量！
+echo "VERSION_DIST:=OpenWrt PVE-N6000" >> include/version.mk
+echo "VERSION_NUMBER:=R${COMPILE_DATE_SHORT}" >> include/version.mk
+echo "REVISION:=(${COMPILE_DATE_LONG})" >> include/version.mk
 
-# 2. 修改 os-release 底层生成 Makefile (这里是核心)
-if [ -f package/base-files/Makefile ]; then
-    sed -i "s/echo 'VERSION=\"%V\"'/echo 'VERSION=\"${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
-    sed -i "s/echo 'PRETTY_NAME=\"%D %V %C\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
-    sed -i "s/echo 'PRETTY_NAME=\"%D %V\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
-fi
-
-# 3. 保留首次开机强制中文配置
+# 2. 保留首次开机强制中文配置
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language <<EOF
 #!/bin/sh
