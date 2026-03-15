@@ -1,5 +1,5 @@
 #!/bin/bash
-# diyyb1-part2.sh (Master 终极典藏版 - 显微镜级除雷)
+# diyyb1-part2.sh (Master 终极防弹版 - 偏执狂级除雷)
 
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -141,7 +141,7 @@ echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
 # =================================================================
-# 5. 固件版本号与真实编译日期注入 (终极修复：源码模板级拦截)
+# 5. 固件版本号与真实编译日期注入 (防撞车终极判定)
 # =================================================================
 echo "注入专属编译日期与版本号..."
 
@@ -150,15 +150,19 @@ COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
 CUSTOM_REVISION="R${COMPILE_DATE_SHORT} (${COMPILE_DATE_LONG})"
 CUSTOM_DESCRIPTION="OpenWrt PVE-N6000"
 
-# 1. 拦截并修改 openwrt_release 生成模板
-sed -i "s/DISTRIB_REVISION='%R'/DISTRIB_REVISION='${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
-sed -i "s/DISTRIB_DESCRIPTION='%D %V %C'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
-sed -i "s/DISTRIB_DESCRIPTION='%D %V'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+# 1. 绝对防御：如果文件存在才执行 sed 替换，避免触发 set -e 导致编译崩溃
+if [ -f package/base-files/files/etc/openwrt_release ]; then
+    sed -i "s/DISTRIB_REVISION='%R'/DISTRIB_REVISION='${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+    sed -i "s/DISTRIB_DESCRIPTION='%D %V %C'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+    sed -i "s/DISTRIB_DESCRIPTION='%D %V'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+fi
 
-# 2. 拦截并修改 os-release 底层生成 Makefile (彻底接管 LuCI 概览显示)
-sed -i "s/echo 'VERSION=\"%V\"'/echo 'VERSION=\"${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
-sed -i "s/echo 'PRETTY_NAME=\"%D %V %C\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
-sed -i "s/echo 'PRETTY_NAME=\"%D %V\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+# 2. 修改 os-release 底层生成 Makefile (这里是核心)
+if [ -f package/base-files/Makefile ]; then
+    sed -i "s/echo 'VERSION=\"%V\"'/echo 'VERSION=\"${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+    sed -i "s/echo 'PRETTY_NAME=\"%D %V %C\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+    sed -i "s/echo 'PRETTY_NAME=\"%D %V\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+fi
 
 # 3. 保留首次开机强制中文配置
 mkdir -p package/base-files/files/etc/uci-defaults
@@ -171,6 +175,7 @@ rm -f /etc/uci-defaults/99-custom-language
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
+
 # =================================================================
 # 6. 强制编译磁盘挂载核心组件 (自动修复 Docker 数据盘不挂载)
 # =================================================================
