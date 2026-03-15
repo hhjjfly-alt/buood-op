@@ -140,26 +140,37 @@ sed -i '/luci-i18n-store/d' .config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
-# 5. 固件版本号与真实编译日期注入
+# =================================================================
+# 5. 固件版本号与真实编译日期注入 (终极修复：源码模板级拦截)
 # =================================================================
 echo "注入专属编译日期与版本号..."
 
 COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
 COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
+CUSTOM_REVISION="R${COMPILE_DATE_SHORT} (${COMPILE_DATE_LONG})"
+CUSTOM_DESCRIPTION="OpenWrt PVE-N6000"
 
+# 1. 拦截并修改 openwrt_release 生成模板
+sed -i "s/DISTRIB_REVISION='%R'/DISTRIB_REVISION='${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+sed -i "s/DISTRIB_DESCRIPTION='%D %V %C'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+sed -i "s/DISTRIB_DESCRIPTION='%D %V'/DISTRIB_DESCRIPTION='${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}'/g" package/base-files/files/etc/openwrt_release
+
+# 2. 拦截并修改 os-release 底层生成 Makefile (彻底接管 LuCI 概览显示)
+sed -i "s/echo 'VERSION=\"%V\"'/echo 'VERSION=\"${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+sed -i "s/echo 'PRETTY_NAME=\"%D %V %C\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+sed -i "s/echo 'PRETTY_NAME=\"%D %V\"'/echo 'PRETTY_NAME=\"${CUSTOM_DESCRIPTION} ${CUSTOM_REVISION}\"'/g" package/base-files/Makefile
+
+# 3. 保留首次开机强制中文配置
 mkdir -p package/base-files/files/etc/uci-defaults
-cat > package/base-files/files/etc/uci-defaults/99-custom-version <<EOF
+cat > package/base-files/files/etc/uci-defaults/99-custom-language <<EOF
 #!/bin/sh
-sed -i "s/DISTRIB_REVISION='.*'/DISTRIB_REVISION='R${COMPILE_DATE_SHORT} (${COMPILE_DATE_LONG})'/g" /etc/openwrt_release
-sed -i "s/DISTRIB_DESCRIPTION='.*'/DISTRIB_DESCRIPTION='OpenWrt PVE-N6000'/g" /etc/openwrt_release
-
 uci set luci.main.lang='zh_cn'
 uci commit luci
 
-rm -f /etc/uci-defaults/99-custom-version
+rm -f /etc/uci-defaults/99-custom-language
 exit 0
 EOF
-chmod +x package/base-files/files/etc/uci-defaults/99-custom-version
+chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 # =================================================================
 # 6. 强制编译磁盘挂载核心组件 (自动修复 Docker 数据盘不挂载)
 # =================================================================
