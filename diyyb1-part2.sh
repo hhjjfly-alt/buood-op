@@ -141,17 +141,24 @@ echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
 # =================================================================
-# 5. 固件版本号与真实编译日期注入 (核弹级终极修复：全局变量直接夺权)
+# 5. 固件版本号与真实编译日期注入 (官方正统通道 - 绝对安全版)
 # =================================================================
 echo "注入专属编译日期与版本号..."
 
 COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
 COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
 
-# 1. 无视一切模板与格式变化，直接在全局 version.mk 最末尾强行覆盖底层变量！
-echo "VERSION_DIST:=OpenWrt PVE-N6000" >> include/version.mk
-echo "VERSION_NUMBER:=R${COMPILE_DATE_SHORT}" >> include/version.mk
-echo "REVISION:=(${COMPILE_DATE_LONG})" >> include/version.mk
+# 1. 开启 OpenWrt 官方底层版本自定义总开关 (IMAGEOPT 是灵魂，防止被 defconfig 洗掉)
+touch .config
+sed -i '/CONFIG_IMAGEOPT/d' .config
+sed -i '/CONFIG_VERSIONOPT/d' .config
+sed -i '/CONFIG_VERSION_NUMBER/d' .config
+sed -i '/CONFIG_VERSION_CODE/d' .config
+
+echo "CONFIG_IMAGEOPT=y" >> .config
+echo "CONFIG_VERSIONOPT=y" >> .config
+echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
+echo "CONFIG_VERSION_CODE=\"${COMPILE_DATE_LONG}\"" >> .config
 
 # 2. 保留首次开机强制中文配置
 mkdir -p package/base-files/files/etc/uci-defaults
@@ -164,7 +171,6 @@ rm -f /etc/uci-defaults/99-custom-language
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
-
 # =================================================================
 # 6. 强制编译磁盘挂载核心组件 (自动修复 Docker 数据盘不挂载)
 # =================================================================
