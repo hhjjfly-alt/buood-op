@@ -141,14 +141,13 @@ echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 
 # =================================================================
-# 5. 固件版本号与真实编译日期注入 (官方正统通道 - 绝对安全版)
+# 5. 固件版本号与真实编译日期注入 (官方正统通道 - 极简单日期版)
 # =================================================================
 echo "注入专属编译日期与版本号..."
 
 COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
-COMPILE_DATE_LONG="$(date +"%Y-%m-%d")"
 
-# 1. 开启 OpenWrt 官方底层版本自定义总开关 (IMAGEOPT 是灵魂，防止被 defconfig 洗掉)
+# 1. 开启 OpenWrt 官方底层版本自定义总开关
 touch .config
 sed -i '/CONFIG_IMAGEOPT/d' .config
 sed -i '/CONFIG_VERSIONOPT/d' .config
@@ -157,8 +156,10 @@ sed -i '/CONFIG_VERSION_CODE/d' .config
 
 echo "CONFIG_IMAGEOPT=y" >> .config
 echo "CONFIG_VERSIONOPT=y" >> .config
+# 保留短日期 (例如：R26.03.16)
 echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
-echo "CONFIG_VERSION_CODE=\"${COMPILE_DATE_LONG}\"" >> .config
+# 核心改动：强制将长日期置空，避免双日期重叠，且防止系统回退显示 git hash
+echo "CONFIG_VERSION_CODE=\"\"" >> .config
 
 # 2. 保留首次开机强制中文配置
 mkdir -p package/base-files/files/etc/uci-defaults
