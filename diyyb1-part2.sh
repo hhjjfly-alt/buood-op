@@ -217,4 +217,27 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-auto-mount
 
+# =================================================================
+# 7. PassWall 满血核心唤醒 (强制编译所有底层协议，告别组件缺失)
+# =================================================================
+echo "正在为 PassWall 注入满血协议核心..."
+
+# 1. 唤醒 Hysteria 核心 (通常包含 Hysteria v1 和 v2)
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
+echo "CONFIG_PACKAGE_hysteria=y" >> .config
+
+# 2. 唤醒 Sing-Box 核心 (极其重要：现在很多高级别 Hysteria2 节点和 VLESS Reality 都靠它跑)
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y" >> .config
+echo "CONFIG_PACKAGE_sing-box=y" >> .config
+
+# 3. 唤醒 Xray 核心 (PassWall 的绝对灵魂基础)
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y" >> .config
+echo "CONFIG_PACKAGE_xray-core=y" >> .config
+
+# 4. 唤醒 Trojan-Go 和 Trojan-Plus (如果你有这方面老节点需求的话，否则可删)
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Go=y" >> .config
+echo "CONFIG_PACKAGE_trojan-go=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
+echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
+
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
