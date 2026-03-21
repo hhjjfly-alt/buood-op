@@ -82,7 +82,7 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
 
-THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-adguardhome package/luci-app-diskman"
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-adguardhome package/luci-app-diskman feeds/momo"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
@@ -240,4 +240,10 @@ echo "CONFIG_PACKAGE_trojan-go=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
 echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
 
+# ==================== 新增：momo sing-box 轻量 LuCI（推荐！）====================
+# Momo = nikki 项目组 sing-box 专用版，资源占用最低、效率最高
+echo "CONFIG_PACKAGE_momo=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-momo=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-momo-zh-cn=y" >> .config  # 排雷：补上原生中文包
+# =================================================================================
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
