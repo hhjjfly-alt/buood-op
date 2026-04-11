@@ -246,4 +246,17 @@ echo "CONFIG_PACKAGE_momo=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-momo=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-momo-zh-cn=y" >> .config  # 排雷：补上原生中文包
 # =================================================================================
+
+# ==================== 新增：高效网络共享 (ksmbd) ====================
+# 1. 核心包与 LuCI 界面
+echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-ksmbd=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-ksmbd-zh-cn=y" >> .config
+
+# 2. Windows 网络发现支持 (必选，否则 Windows 无法在“网络”里直接看到路由器)
+echo "CONFIG_PACKAGE_wsdd2=y" >> .config
+
+# 3. 磁盘辅助工具 (配合你之前的磁盘挂载脚本)
+echo "CONFIG_PACKAGE_autosamba=y" >> .config
+# =================================================================
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
