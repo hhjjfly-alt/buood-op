@@ -77,6 +77,8 @@ sed -i 's/1.2024.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f19
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 
+# 拉取 Tailscale 的 LuCI 图形界面
+clone_or_pull https://github.com/asvow/luci-app-tailscale.git package/luci-app-tailscale
 # =================================================================
 # 3. 终极 apk 净化 (严格修复正则执行顺序)
 # =================================================================
