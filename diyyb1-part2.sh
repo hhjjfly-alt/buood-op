@@ -259,4 +259,15 @@ echo "CONFIG_PACKAGE_wsdd2=y" >> .config
 # 3. 磁盘辅助工具 (配合你之前的磁盘挂载脚本)
 echo "CONFIG_PACKAGE_autosamba=y" >> .config
 # =================================================================
+
+# ==================== 新增：Tailscale 异地组网 ====================
+# 1. 核心程序与 LuCI 界面（由 istore 源提供支持）
+echo "CONFIG_PACKAGE_tailscale=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-tailscale=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-tailscale-zh-cn=y" >> .config
+
+# 2. 确保内核支持（Tailscale 运行依赖虚拟网卡驱动）
+echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+# =================================================================
+
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
