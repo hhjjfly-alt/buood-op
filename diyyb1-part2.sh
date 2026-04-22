@@ -79,7 +79,12 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 
 # 拉取 Tailscale 的 LuCI 图形界面
 clone_or_pull https://github.com/asvow/luci-app-tailscale.git package/luci-app-tailscale
-# =================================================================
+
+# === 暴力排雷：解决 tailscale 与 luci-app-tailscale 的核心文件冲突 ===
+rm -rf package/luci-app-tailscale/root/etc/init.d/tailscale
+rm -rf package/luci-app-tailscale/root/etc/config/tailscale
+# ====================================================================
+
 # 3. 终极 apk 净化 (严格修复正则执行顺序)
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
