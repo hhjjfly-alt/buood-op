@@ -68,8 +68,8 @@ clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakeh
 clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
 # AdGuardHome 和 Diskman
-clone_or_pull https://github.com/rufengsuixing/luci-app-adguardhome.git package/luci-app-adguardhome
-clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
+# clone_or_pull https://github.com/rufengsuixing/luci-app-adguardhome.git package/luci-app-adguardhome
+# clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
 # SmartDNS
 echo "处理 smartdns 和 luci-app-smartdns..."
@@ -89,7 +89,7 @@ rm -rf package/luci-app-tailscale/root/etc/config/tailscale
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
 
-THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-adguardhome package/luci-app-diskman feeds/momo"
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-diskman feeds/momo"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
