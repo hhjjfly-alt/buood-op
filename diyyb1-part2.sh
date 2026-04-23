@@ -72,10 +72,10 @@ clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fak
 # clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
 # SmartDNS
-echo "处理 smartdns 和 luci-app-smartdns..."
-sed -i 's/1.2024.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f1912ab020ea9a60efac4732442f0bb7093f40b/g; /^PKG_MIRROR_HASH/s/^/#/' feeds/packages/net/smartdns/Makefile
-rm -rf package/luci-app-smartdns
-clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
+# echo "处理 smartdns 和 luci-app-smartdns..."
+# sed -i 's/1.2024.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f1912ab020ea9a60efac4732442f0bb7093f40b/g; /^PKG_MIRROR_HASH/s/^/#/' feeds/packages/net/smartdns/Makefile
+# rm -rf package/luci-app-smartdns
+# clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 
 # 拉取 Tailscale 的 LuCI 图形界面
 clone_or_pull https://github.com/asvow/luci-app-tailscale.git package/luci-app-tailscale
@@ -89,7 +89,7 @@ rm -rf package/luci-app-tailscale/root/etc/config/tailscale
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
 
-THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-smartdns package/luci-app-diskman feeds/momo"
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/openwrt-fakehttp package/luci-app-fakehttp package/luci-app-diskman feeds/momo"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
