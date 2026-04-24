@@ -287,10 +287,20 @@ echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 
-# ==================== 终极修复：原生 kmod 内核模块注入 ====================
-# 通过官方包管理体系开启 BPF 调度器，彻底避免 make defconfig 清洗和内核提问
-echo "CONFIG_PACKAGE_kmod-sched-bpf=y" >> .config
-echo "CONFIG_PACKAGE_kmod-sched-core=y" >> .config
+# ==================== 终极暴力修复：直写底层内核配置 ====================
+# 应对 OpenWrt master 分支内核升级带来的 eBPF 提问卡死
+# 强制向通用内核模板注入 =y 参数，顺从 dae 的依赖需求
+for conf in target/linux/generic/config-*; do
+    echo "CONFIG_NET_SCH_BPF=y" >> "$conf"
+    echo "CONFIG_NET_ACT_BPF=y" >> "$conf"
+    echo "CONFIG_NET_CLS_BPF=y" >> "$conf"
+done
+for conf in target/linux/x86/config-*; do
+    echo "CONFIG_NET_SCH_BPF=y" >> "$conf"
+    echo "CONFIG_NET_ACT_BPF=y" >> "$conf"
+    echo "CONFIG_NET_CLS_BPF=y" >> "$conf"
+done
+# =================================================================
 
 # =================================================================
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
