@@ -275,6 +275,12 @@ echo "CONFIG_PACKAGE_luci-i18n-tailscale-zh-cn=y" >> .config
 
 # 2. 确保内核支持（Tailscale 运行依赖虚拟网卡驱动）
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+
+# ==================== 新增：Web 网页终端 (TTYD) ====================
+# 允许在 LuCI 网页后台直接使用 SSH 终端，无需第三方客户端
+echo "CONFIG_PACKAGE_ttyd=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 # =================================================================
 
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
