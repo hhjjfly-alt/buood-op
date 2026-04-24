@@ -286,6 +286,8 @@ echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
-# =================================================================
 
+# ==================== 修复：自动应答内核 eBPF 提问 ====================
+echo "CONFIG_KERNEL_NET_SCH_BPF=y" >> .config
+# =================================================================
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
