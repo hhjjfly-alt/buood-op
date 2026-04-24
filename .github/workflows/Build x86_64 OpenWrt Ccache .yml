@@ -11,7 +11,7 @@ env:
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: openwrtYB1.config
   DIY_P1_SH: diyyb1-part1.sh
-  DIY_P2_SH: diyyb1-part2.sh
+  DIY_P2_SH: diyyb1-part2HomeProxy.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: false
