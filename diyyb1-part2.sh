@@ -254,6 +254,11 @@ echo "CONFIG_PACKAGE_luci-app-momo=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-momo-zh-cn=y" >> .config  # 排雷：补上原生中文包
 # =================================================================================
 
+# ==================== 新增：HomeProxy 控制面板 ====================
+echo "CONFIG_PACKAGE_luci-app-homeproxy=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-homeproxy-zh-cn=y" >> .config
+# =================================================================
+
 # ==================== 新增：高效网络共享 (ksmbd) ====================
 # 1. 核心包与 LuCI 界面
 echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
