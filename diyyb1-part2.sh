@@ -287,7 +287,11 @@ echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 
-# ==================== 修复：自动应答内核 eBPF 提问 ====================
-echo "CONFIG_KERNEL_NET_SCH_BPF=y" >> .config
+# ==================== 终极修复：直写底层内核配置 ====================
+# 绕过 OpenWrt 的 defconfig 清洗，直接向 x86 的内核配置文件注入 eBPF 参数
+for conf in target/linux/x86/config-*; do
+    echo "CONFIG_NET_SCH_BPF=y" >> "$conf"
+    echo "CONFIG_NET_ACT_BPF=y" >> "$conf"
+done
 # =================================================================
 echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
