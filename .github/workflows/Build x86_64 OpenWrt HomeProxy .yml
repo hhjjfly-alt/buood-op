@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt PVE (HomeProxy)
+name: Build x86_64 OpenWrt (HomeProxy)
 
 on:
   repository_dispatch:
