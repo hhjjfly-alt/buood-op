@@ -12,8 +12,6 @@ add_feed() {
 # 回归官方源，依靠 part2 的终极 sed 脚本进行降维修复
 add_feed istore 'https://github.com/linkease/istore;main'
 add_feed istore_packages 'https://github.com/linkease/istore-packages;main'
-# ==================== 新增：sing-box 轻量 LuCI（momo / nikki sing-box版）================
-add_feed momo 'https://github.com/nikkinikki-org/OpenWrt-momo.git;main'
 
 # ==================== 新增：HomeProxy (下一代极简 Sing-box 前端) =================
 add_feed homeproxy 'https://github.com/VIKINGYFY/homeproxy.git;main'
