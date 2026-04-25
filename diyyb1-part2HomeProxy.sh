@@ -47,13 +47,37 @@ clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
 # DAE
+# DAE
 rm -rf package/dae package/luci-app-dae
+
+# 1. 拉取 immortalwrt 的 dae 编译环境
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
-# 修复 dae 的 golang 依赖路径
+
+# 2. 修复 dae 的 golang 依赖路径
 sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
 
+# ================= 完全自动化：永远编译最新版 =================
+# 通过 GitHub API 动态抓取最新的 Release 标签 (涵盖最新稳定版或 rc 预发布版)
+LATEST_TAG=$(curl -s https://api.github.com/repos/daeuniverse/dae/releases | grep '"tag_name":' | head -n 1 | awk -F '"' '{print $4}')
+LATEST_VERSION=${LATEST_TAG#v} # 去掉版本号前面的 'v'，适配 Makefile 格式
+
+echo "========================================="
+echo " 🚀 自动检测并拉取 DAE 最新版本: $LATEST_TAG"
+echo "========================================="
+
+# 将获取到的最新版本号动态写入 Makefile
+sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=${LATEST_VERSION}/g" package/dae/Makefile
+
+# OpenWrt 的 Makefile 可能会指定 Commit Hash，我们直接将 Hash 替换为最新的 Tag，Git 依然能完美识别并拉取
+sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=${LATEST_TAG}/g" package/dae/Makefile
+
+# 强制跳过源码包的 SHA256 校验 (因为版本是动态的，校验旧 Hash 必定失败)
+sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
+# ==============================================================
+
+# 3. 拉取配套的 LuCI 界面
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
 rm -rf package/immortalwrt-luci package/luci-app-dae/dae
