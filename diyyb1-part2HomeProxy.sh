@@ -110,7 +110,7 @@ rm -rf package/luci-app-tailscale/root/etc/init.d/tailscale
 rm -rf package/luci-app-tailscale/root/etc/config/tailscale
 
 # === homeproxy源码直拉至 package 目录 ===
-clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/                                   
+clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/homeproxy                                   
 
 # 3. 终极 apk 净化 (严格修复正则执行顺序)
 # =================================================================
