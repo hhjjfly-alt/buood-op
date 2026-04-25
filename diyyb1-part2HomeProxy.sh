@@ -84,7 +84,9 @@ clone_or_pull https://github.com/asvow/luci-app-tailscale.git package/luci-app-t
 # === 暴力排雷：解决 tailscale 与 luci-app-tailscale 的核心文件冲突 ===
 rm -rf package/luci-app-tailscale/root/etc/init.d/tailscale
 rm -rf package/luci-app-tailscale/root/etc/config/tailscale
-# ====================================================================
+
+# === homeproxy源码直拉至 package 目录 ===
+clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/                                   
 
 # 3. 终极 apk 净化 (严格修复正则执行顺序)
 # =================================================================
@@ -250,12 +252,12 @@ echo "CONFIG_PACKAGE_trojan-go=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
 echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
 
-# === 【修改标注：此处已删除了 Momo 相关的配置注入】 ===
-
-# ==================== 新增：HomeProxy 控制面板 ====================
+# ==================== 新增：HomeProxy 核心与控制面板 ====================
+# 强制双端注入：同时选中后端核心逻辑包与前端 LuCI 界面包
+echo "CONFIG_PACKAGE_homeproxy=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-homeproxy=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-homeproxy-zh-cn=y" >> .config
-# =================================================================
+# ====================================================================
 
 # ==================== 新增：高效网络共享 (ksmbd) ====================
 # 1. 核心包与 LuCI 界面
