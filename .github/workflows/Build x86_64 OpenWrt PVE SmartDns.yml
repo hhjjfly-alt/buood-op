@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt PVE (N6000)
+name: Build x86_64 OpenWrt PVE (N6000-SmartDns)
 
 on:
   repository_dispatch:
@@ -9,7 +9,7 @@ env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: openwrtYB1.config
+  CONFIG_FILE: openwrtYB.config
   DIY_P1_SH: diyyb1-part1.sh
   DIY_P2_SH: diyyb1-part2.sh
   UPLOAD_BIN_DIR: false
