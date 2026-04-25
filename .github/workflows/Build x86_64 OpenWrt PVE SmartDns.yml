@@ -1,4 +1,4 @@
-name: Build x86_64 OpenWrt PVE (N6000-SmartDns)
+name: Build x86_64 (N6000-SmartDns)
 
 on:
   repository_dispatch:
