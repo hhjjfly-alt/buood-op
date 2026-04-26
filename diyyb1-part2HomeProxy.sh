@@ -73,7 +73,7 @@ clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fak
 
 # AdGuardHome 和 Diskman
 # clone_or_pull https://github.com/rufengsuixing/luci-app-adguardhome.git package/luci-app-adguardhome
-# clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
+clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
 # === 【修改标注：恢复 SmartDNS 源码拉取】 ===
 echo "处理 smartdns 和 luci-app-smartdns..."
