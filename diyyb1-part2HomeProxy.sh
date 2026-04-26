@@ -206,7 +206,19 @@ echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
 
 sed -i '/CONFIG_PACKAGE_blkid/d' .config
 echo "CONFIG_PACKAGE_blkid=y" >> .config
+# ==================== 新增：NTFS 满血通杀支持 ====================
+# 1. 注入 6.x 内核原生高性能驱动 ntfs3 (彻底释放 CPU，跑满 2.5G 内网)
+sed -i '/CONFIG_PACKAGE_kmod-fs-ntfs3/d' .config
+echo "CONFIG_PACKAGE_kmod-fs-ntfs3=y" >> .config
 
+# 2. 注入经典用户态驱动 ntfs-3g (作为终极备胎和提供修复工具 ntfsfix)
+sed -i '/CONFIG_PACKAGE_ntfs-3g/d' .config
+echo "CONFIG_PACKAGE_ntfs-3g=y" >> .config
+
+# 3. 注入 UTF-8 字符集内核模块 (防止 NTFS 盘里的中文电影名/文件夹变乱码，极度重要！)
+sed -i '/CONFIG_PACKAGE_kmod-nls-utf8/d' .config
+echo "CONFIG_PACKAGE_kmod-nls-utf8=y" >> .config
+# =================================================================
 # 注入首次开机自动配置 sda3 挂载的脚本
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount <<'EOF'
 #!/bin/sh
