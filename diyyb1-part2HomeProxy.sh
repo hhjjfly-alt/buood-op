@@ -46,7 +46,9 @@ rm -rf package/pw-packages package/pw-luci/shadowsocksr-libev
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
-# DAE
+# ====================================================================
+# DAE (锁定编译 v1.1.0 稳定版)
+# ====================================================================
 rm -rf package/dae package/luci-app-dae
 
 # 1. 拉取 immortalwrt 的 dae 编译环境
@@ -57,6 +59,16 @@ rm -rf package/immortalwrt-packages
 # 2. 修复 dae 的 golang 依赖路径
 sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
 
+# ==================== 新增：强制锁定 v1.1.0 ====================
+echo "正在修改 DAE Makefile，强制指定版本为 v1.1.0 ..."
+# 将 Makefile 中的版本号修改为 1.1.0
+sed -i 's/PKG_VERSION:=.*/PKG_VERSION:=1.1.0/g' package/dae/Makefile
+# 将源码拉取的 Tag 修改为 v1.1.0
+sed -i 's/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v1.1.0/g' package/dae/Makefile
+# 跳过原本旧版本压缩包的 SHA256 哈希校验
+sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
+# ==============================================================
+
 # 3. 拉取配套的 LuCI 界面
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
@@ -64,6 +76,7 @@ rm -rf package/immortalwrt-luci package/luci-app-dae/dae
 
 # 【核心修复】：修复 luci-app-dae 的 luci.mk 相对路径依赖
 sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
+# ====================================================================
 
 # DDNS-GO, Fakehttp & Geodata
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
