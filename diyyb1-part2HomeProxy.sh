@@ -81,8 +81,6 @@ sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Mak
 # DDNS-GO, Fakehttp & Geodata
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
-clone_or_pull https://github.com/yingziwu/openwrt-fakehttp package/openwrt-fakehttp
-clone_or_pull https://github.com/yingziwu/luci-app-fakehttp package/luci-app-fakehttp
 
 # AdGuardHome 和 Diskman
 # clone_or_pull https://github.com/rufengsuixing/luci-app-adguardhome.git package/luci-app-adguardhome
