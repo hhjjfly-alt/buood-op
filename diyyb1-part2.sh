@@ -84,7 +84,7 @@ clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 
 # AdGuardHome 和 Diskman
 # clone_or_pull https://github.com/rufengsuixing/luci-app-adguardhome.git package/luci-app-adguardhome
-# clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
+clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
 # SmartDNS
 echo "处理 smartdns 和 luci-app-smartdns..."
