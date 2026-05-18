@@ -74,11 +74,18 @@ clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 # Diskman
 clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
-# SmartDNS
+# ====================================================================
+# SmartDNS (官方直拉模式，永远编译最新版)
+# ====================================================================
 echo "处理 smartdns 和 luci-app-smartdns..."
-sed -i 's/1.2024.45/1.2025.47/g; s/9ee27e7ba2d9789b7e007410e76c06a957f85e98/0f1912ab020ea9a60efac4732442f0bb7093f40b/g; /^PKG_MIRROR_HASH/s/^/#/' feeds/packages/net/smartdns/Makefile
+# 1. 彻底删除 OpenWrt feeds 自带的旧版核心包
+rm -rf feeds/packages/net/smartdns
+# 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
+clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
+# 3. 拉取官方最新的 LuCI 界面
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
+# ====================================================================
 
 # HomeProxy 源码直拉
 clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/homeproxy                                   
@@ -87,8 +94,8 @@ clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/homeproxy
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
 
-# 净化名单中已彻底移除 fakehttp
-THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/luci-app-smartdns feeds/momo"
+# 净化名单中加入了 package/smartdns，确保版本号规范
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/momo"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
