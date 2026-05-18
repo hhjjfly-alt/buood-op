@@ -94,8 +94,8 @@ clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/homeproxy
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
 
-# 净化名单中加入了 package/smartdns，确保版本号规范
-THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/momo"
+# 净化名单中加入了 package/smartdns，且已彻底移除 fakehttp 和 momo
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
@@ -214,10 +214,6 @@ echo "CONFIG_PACKAGE_trojan-go=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
 echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
 
-echo "CONFIG_PACKAGE_momo=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-momo=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-momo-zh-cn=y" >> .config 
-
 echo "CONFIG_PACKAGE_homeproxy=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-homeproxy=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-homeproxy-zh-cn=y" >> .config
@@ -231,6 +227,12 @@ echo "CONFIG_PACKAGE_autosamba=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
+
+# === 修改：Tailscale 异地组网 (纯核心无LuCI) ===
+sed -i '/CONFIG_PACKAGE_luci-app-tailscale/d' .config
+sed -i '/CONFIG_PACKAGE_luci-i18n-tailscale/d' .config
+echo "CONFIG_PACKAGE_tailscale=y" >> .config
+echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 
 # === 核心修改：强制 PassWall 和 SmartDNS 开启并设为自动启动 ===
 mkdir -p package/base-files/files/etc/uci-defaults
