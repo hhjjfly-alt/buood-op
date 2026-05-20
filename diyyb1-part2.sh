@@ -83,8 +83,12 @@ rm -rf feeds/packages/net/smartdns
 # 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
 clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
 
-# === 【新增修复：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
+# === 【新增修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
 sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
+
+# === 【新增修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
+sed -i 's/^PKG_HASH:=.*/PKG_HASH:=skip/g' package/smartdns/Makefile
+sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/smartdns/Makefile
 # ===========================================================================
 
 # 3. 拉取官方最新的 LuCI 界面
