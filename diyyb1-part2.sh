@@ -136,6 +136,13 @@ if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
+# === 新增：强制抓取 SmartDNS 核心的绝对最新版本号，无视作者的图纸滞后 ===
+SMARTDNS_LATEST=$(curl -s "https://api.github.com/repos/pymumu/smartdns/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^Release//')
+if [ -n "$SMARTDNS_LATEST" ] && [ -f "package/smartdns/Makefile" ]; then
+    echo "获取到 SmartDNS 最新版本: Release$SMARTDNS_LATEST，正在强制注入..."
+    sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SMARTDNS_LATEST/" package/smartdns/Makefile
+    sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/smartdns/Makefile
+
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
