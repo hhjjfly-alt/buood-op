@@ -78,20 +78,20 @@ clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-di
 # SmartDNS (官方直拉模式，永远编译最新版)
 # ====================================================================
 echo "处理 smartdns 和 luci-app-smartdns..."
-# 1. 彻底删除 OpenWrt feeds 自带的旧版核心包
 rm -rf feeds/packages/net/smartdns
-# 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
 clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
 
-# === 【新增修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
+# === 【修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
 sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
 
-# === 【新增修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
+# === 【修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
 sed -i 's/^PKG_HASH:=.*/PKG_HASH:=skip/g' package/smartdns/Makefile
 sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/smartdns/Makefile
+
+# === 【修复 3：修复 v48/v48.1 缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
+sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
 # ===========================================================================
 
-# 3. 拉取官方最新的 LuCI 界面
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 # ====================================================================
