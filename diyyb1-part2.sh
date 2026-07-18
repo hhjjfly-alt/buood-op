@@ -247,14 +247,10 @@ sed -i '/CONFIG_PACKAGE_luci-i18n-tailscale/d' .config
 echo "CONFIG_PACKAGE_tailscale=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 
-# === 核心修改：安全自启策略 (SmartDNS 自动接管，PassWall 首次禁用防断网) ===
+# === 核心修改：安全自启策略 (仅接管 SmartDNS，PassWall 继承系统默认或用户配置) ===
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-enable-services <<'EOF'
 #!/bin/sh
-# 安全防线：禁止 PassWall 首次开机自启（防止空节点劫持导致断网）
-uci -q set passwall.main.enabled='1'
-uci commit passwall
-/etc/init.d/passwall disable || true
 
 # 强制开启 SmartDNS (提供稳定的国内 DNS 解析底座)
 uci -q set smartdns.@smartdns[0].enabled='1'
