@@ -252,7 +252,7 @@ mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-enable-services <<'EOF'
 #!/bin/sh
 # 安全防线：禁止 PassWall 首次开机自启（防止空节点劫持导致断网）
-uci -q set passwall.main.enabled='0'
+uci -q set passwall.main.enabled='1'
 uci commit passwall
 /etc/init.d/passwall disable || true
 
