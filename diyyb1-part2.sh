@@ -140,9 +140,17 @@ fi
 SMARTDNS_LATEST=$(curl -s "https://api.github.com/repos/pymumu/smartdns/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^Release//')
 if [ -n "$SMARTDNS_LATEST" ] && [ -f "package/smartdns/Makefile" ]; then
     echo "获取到 SmartDNS 最新版本: Release$SMARTDNS_LATEST，正在强制注入..."
+    # 1. 修改编译产物的版本号显示
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SMARTDNS_LATEST/" package/smartdns/Makefile
+    
+    # 2. 【核心修正】：修改 Git 检出目标，强制拉取最新的 Tag 真实代码，而不是旧 Hash
+    sed -i "s/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=Release$SMARTDNS_LATEST/" package/smartdns/Makefile
+    
+    # 3. 彻底免疫安全校验报错
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/smartdns/Makefile
+    sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/" package/smartdns/Makefile
 fi
+# ==============================================================================
 
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 mkdir -p package/base-files/files/etc
