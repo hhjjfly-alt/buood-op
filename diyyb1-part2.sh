@@ -78,27 +78,27 @@ clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-di
 # SmartDNS (官方直拉模式，永远编译最新版)
 # ====================================================================
 echo "处理 smartdns 和 luci-app-smartdns..."
+# 1. 彻底删除 OpenWrt feeds 自带的旧版核心包
 rm -rf feeds/packages/net/smartdns
+# 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
 clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
 
-# === 【修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
+# === 【新增修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
 sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
 
-# === 【修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
+# === 【新增修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
 sed -i 's/^PKG_HASH:=.*/PKG_HASH:=skip/g' package/smartdns/Makefile
 sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/smartdns/Makefile
 
-# === 【修复 3：修复 v48/v48.1 缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
+# === 【新增修复 3：修复缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
 sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
 # ===========================================================================
 
+# 3. 拉取官方最新的 LuCI 界面
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 # ====================================================================
-
-# HomeProxy 源码直拉
-clone_or_pull https://github.com/VIKINGYFY/homeproxy.git package/homeproxy                                   
-
+                                 
 # 3. 终极 apk 净化 (严格修复正则执行顺序)
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
@@ -231,10 +231,6 @@ echo "CONFIG_PACKAGE_trojan-go=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
 echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
 
-echo "CONFIG_PACKAGE_homeproxy=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-homeproxy=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-homeproxy-zh-cn=y" >> .config
-
 echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ksmbd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ksmbd-zh-cn=y" >> .config
@@ -251,16 +247,16 @@ sed -i '/CONFIG_PACKAGE_luci-i18n-tailscale/d' .config
 echo "CONFIG_PACKAGE_tailscale=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 
-# === 核心修改：强制 PassWall 和 SmartDNS 开启并设为自动启动 ===
+# === 核心修改：安全自启策略 (SmartDNS 自动接管，PassWall 首次禁用防断网) ===
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-enable-services <<'EOF'
 #!/bin/sh
-# 强制开启 PassWall
-uci -q set passwall.main.enabled='1'
+# 安全防线：禁止 PassWall 首次开机自启（防止空节点劫持导致断网）
+uci -q set passwall.main.enabled='0'
 uci commit passwall
-/etc/init.d/passwall enable || true
+/etc/init.d/passwall disable || true
 
-# 强制开启 SmartDNS
+# 强制开启 SmartDNS (提供稳定的国内 DNS 解析底座)
 uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
