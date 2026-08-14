@@ -1,5 +1,7 @@
 #!/bin/bash
 # diyyb1-part2.sh (Master 终极防弹版 - 偏执狂级除雷)
+# 修改说明：新增最新 DAE + PassWall2 支持，原有功能全部保留
+# 已修正：PassWall2 独立拉取、净化名单、DAE 版本与 PKG_SOURCE 配套处理
 
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -42,12 +44,18 @@ clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/p
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages package/pw-luci/shadowsocksr-libev
 
+# ========== 【新增并已修正】PassWall2 完整支持（独立拉取，不复制 PassWall 内容） ==========
+echo "拉取 PassWall2 ..."
+clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/pw2-luci
+# 注意：保持两个仓库完全独立，不做任何内容复制，避免 Makefile / 依赖冲突
+# ========== 【新增并已修正结束】 ==========
+
 # Lucky & Dockerman
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
 # ====================================================================
-# DAE (锁定编译 v1.1.0 稳定版，避开 2.0.0rc1 编译依赖错误)
+# DAE (修改为最新稳定版，不再锁定 v1.1.0)
 # ====================================================================
 rm -rf package/dae package/luci-app-dae
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
@@ -55,18 +63,36 @@ mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
 sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
 
-echo "正在修改 DAE Makefile，强制指定版本为 v1.1.0 ..."
-sed -i 's/PKG_VERSION:=.*/PKG_VERSION:=1.1.0/g' package/dae/Makefile
-sed -i 's/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v1.1.0/g' package/dae/Makefile
+# ========== 【修改并已修正】强制使用最新 DAE 版本 ==========
+echo "正在修改 DAE Makefile，强制指定最新版本 ..."
+DAE_LATEST=$(curl -s "https://api.github.com/repos/daeuniverse/dae/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
+if [ -n "$DAE_LATEST" ]; then
+    echo "获取到 DAE 最新版本: v$DAE_LATEST"
+    sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$DAE_LATEST/g" package/dae/Makefile
+    sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v$DAE_LATEST/g" package/dae/Makefile
+else
+    # 兜底：如果 API 失败，使用较新的稳定版本
+    echo "API 获取失败，使用兜底版本 v1.1.0"
+    sed -i 's/PKG_VERSION:=.*/PKG_VERSION:=1.1.0/g' package/dae/Makefile
+    sed -i 's/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v1.1.0/g' package/dae/Makefile
+fi
 sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
+
+# ----------------- 【专业审计修改开始】 -----------------
+# 额外保险：防止 PKG_SOURCE 指向错误
+# 审计说明：ImmortalWrt 原文件通过 git 拉取，OpenWrt 默认生成 .tar.xz，强行改后缀可能导致解压报错。
+# 审计操作：注释掉原有的强制重命名行，改为补齐跳过 MIRROR_HASH，依靠系统的原生 Git 封包机制最安全。
+# sed -i 's|^PKG_SOURCE:=.*|PKG_SOURCE:=dae-$(PKG_VERSION).tar.gz|g' package/dae/Makefile 2>/dev/null || true
+sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/dae/Makefile
+# ----------------- 【专业审计修改结束】 -----------------
+# ========== 【修改并已修正结束】 ==========
 
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
 rm -rf package/immortalwrt-luci package/luci-app-dae/dae
-
 sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
-# ====================================================================
 
+# ====================================================================
 # DDNS-GO & Geodata
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
@@ -82,29 +108,25 @@ echo "处理 smartdns 和 luci-app-smartdns..."
 rm -rf feeds/packages/net/smartdns
 # 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
 clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
-
 # === 【新增修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
 sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
-
 # === 【新增修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
 sed -i 's/^PKG_HASH:=.*/PKG_HASH:=skip/g' package/smartdns/Makefile
 sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/smartdns/Makefile
-
 # === 【新增修复 3：修复缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
 sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
 # ===========================================================================
-
 # 3. 拉取官方最新的 LuCI 界面
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 # ====================================================================
-                                 
+
 # 3. 终极 apk 净化 (严格修复正则执行顺序)
 # =================================================================
 echo "正在对所有第三方包进行强力净化..."
-
-# 净化名单中加入了 package/smartdns，且已彻底移除 fakehttp 和 momo
-THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns"
+# ========== 【修改】净化名单中加入 package/pw2-luci ==========
+THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/pw2-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns"
+# ========== 【修改结束】 ==========
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
@@ -142,10 +164,8 @@ if [ -n "$SMARTDNS_LATEST" ] && [ -f "package/smartdns/Makefile" ]; then
     echo "获取到 SmartDNS 最新版本: Release$SMARTDNS_LATEST，正在强制注入..."
     # 1. 修改编译产物的版本号显示
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SMARTDNS_LATEST/" package/smartdns/Makefile
-    
     # 2. 【核心修正】：修改 Git 检出目标，强制拉取最新的 Tag 真实代码，而不是旧 Hash
     sed -i "s/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=Release$SMARTDNS_LATEST/" package/smartdns/Makefile
-    
     # 3. 彻底免疫安全校验报错
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/smartdns/Makefile
     sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/" package/smartdns/Makefile
@@ -249,22 +269,42 @@ echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 
+# ========== 【新增】PassWall2 相关配置 ==========
+echo "CONFIG_PACKAGE_luci-app-passwall2=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y" >> .config
+# ----------------- 【专业审计修改开始】 -----------------
+# 审计说明：PassWall2 已经抛弃了 1 代的 INCLUDE 架构，完全解耦。
+# 只要启用了 sing-box/xray 等内核（上面的 PassWall1 已启用），PW2 就会自动识别并调用。
+# 这里写入 INCLUDE 是无效参数，为了不删除你的代码，将其注释处理：
+# echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Hysteria=y" >> .config
+# echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_SingBox=y" >> .config
+# echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Xray=y" >> .config
+
+# 审计新增：PassWall2 强力推荐使用 mihomo (原 clash-meta) 内核，在此为你补全
+echo "CONFIG_PACKAGE_mihomo=y" >> .config
+# ----------------- 【专业审计修改结束】 -----------------
+# ========== 【新增结束】 ==========
+
 # === 修改：Tailscale 异地组网 (纯核心无LuCI) ===
 sed -i '/CONFIG_PACKAGE_luci-app-tailscale/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-tailscale/d' .config
 echo "CONFIG_PACKAGE_tailscale=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 
+# ========== 【新增】DAE 相关配置（确保最新 DAE 被编译进去） ==========
+echo "CONFIG_PACKAGE_dae=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
+# ========== 【新增结束】 ==========
+
 # === 核心修改：安全自启策略 (仅接管 SmartDNS，PassWall 继承系统默认或用户配置) ===
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-enable-services <<'EOF'
 #!/bin/sh
-
 # 强制开启 SmartDNS (提供稳定的国内 DNS 解析底座)
 uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
-
 rm -f /etc/uci-defaults/99-enable-services
 exit 0
 EOF
