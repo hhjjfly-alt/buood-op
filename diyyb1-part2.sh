@@ -1,7 +1,5 @@
 #!/bin/bash
-# diyyb1-part2.sh (Master 终极防弹版 - 偏执狂级除雷)
-# 修改说明：新增最新 DAE + PassWall2 支持，原有功能全部保留
-# 已修正：PassWall2 独立拉取、净化名单、DAE 版本与 PKG_SOURCE 配套处理
+# diyyb1-part2.sh (精简审计版)
 
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -28,104 +26,65 @@ clone_or_pull() {
 
 echo "=== 开始执行 diyyb1-part2.sh ==="
 
-# 1. 清理官方冲突依赖包
+# 1. 清理冲突依赖包
 echo "清理默认冲突依赖..."
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
 
-# =================================================================
-# 2. 批量拉取所有第三方源码 (全名单无遗漏)
-# =================================================================
+# 2. 拉取第三方源码
 echo "拉取第三方插件..."
 
-# PassWall
+# PassWall 1
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/pw-packages
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/pw-luci
 cp -rf package/pw-packages/* package/pw-luci/
 rm -rf package/pw-packages package/pw-luci/shadowsocksr-libev
 
-# ========== 【新增并已修正】PassWall2 完整支持（独立拉取，不复制 PassWall 内容） ==========
-echo "拉取 PassWall2 ..."
+# [修改处: 独立拉取 PassWall2，避免与 PW1 依赖冲突]
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/pw2-luci
-# 注意：保持两个仓库完全独立，不做任何内容复制，避免 Makefile / 依赖冲突
-# ========== 【新增并已修正结束】 ==========
 
 # Lucky & Dockerman
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
-# ====================================================================
-# DAE (修改为最新稳定版，不再锁定 v1.1.0)
-# ====================================================================
+# DAE
 rm -rf package/dae package/luci-app-dae
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
-sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
-
-# ========== 【修改并已修正】强制使用最新 DAE 版本 ==========
-echo "正在修改 DAE Makefile，强制指定最新版本 ..."
-DAE_LATEST=$(curl -s "https://api.github.com/repos/daeuniverse/dae/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
-if [ -n "$DAE_LATEST" ]; then
-    echo "获取到 DAE 最新版本: v$DAE_LATEST"
-    sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$DAE_LATEST/g" package/dae/Makefile
-    sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v$DAE_LATEST/g" package/dae/Makefile
-else
-    # 兜底：如果 API 失败，使用较新的稳定版本
-    echo "API 获取失败，使用兜底版本 v1.1.0"
-    sed -i 's/PKG_VERSION:=.*/PKG_VERSION:=1.1.0/g' package/dae/Makefile
-    sed -i 's/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v1.1.0/g' package/dae/Makefile
-fi
-sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
-
-# ----------------- 【专业审计修改开始】 -----------------
-# 额外保险：防止 PKG_SOURCE 指向错误
-sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/dae/Makefile
-# ----------------- 【专业审计修改结束】 -----------------
-# ========== 【修改并已修正结束】 ==========
-
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
 rm -rf package/immortalwrt-luci package/luci-app-dae/dae
-sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
 
-# ====================================================================
-# DDNS-GO & Geodata
+# DDNS-GO & Geodata & Diskman
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
-
-# Diskman
 clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
 
-# ====================================================================
-# SmartDNS (官方直拉模式，永远编译最新版)
-# ====================================================================
-echo "处理 smartdns 和 luci-app-smartdns..."
-# 1. 彻底删除 OpenWrt feeds 自带的旧版核心包
+# SmartDNS
 rm -rf feeds/packages/net/smartdns
-# 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
 clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
-
-# === 【修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
-sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
-
-# === 【专业审计调整：取消在此时执行不稳定的哈希sed替换，移至第 4 部分统一处理】 ===
-
-# === 【修复 3：修复缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
-sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
-# ===========================================================================
-
-# 3. 拉取官方最新的 LuCI 界面
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
-# ====================================================================
 
-# 3. 终极 apk 净化 (严格修复正则执行顺序)
-# =================================================================
-echo "正在对所有第三方包进行强力净化..."
-# ========== 【修改】净化名单中加入 package/pw2-luci ==========
+
+# 3. 源码调整与修复
+echo "调整与修复第三方源码..."
+
+# [修改处: DAE 路径修复与哈希跳过]
+sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
+sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
+sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
+sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/dae/Makefile
+
+# [修改处: SmartDNS 依赖与路径修复]
+sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
+sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
+
+
+# 4. 净化环境与更新 Feeds
+echo "执行包名净化与 Feeds 更新..."
 THIRD_PARTY_DIRS="feeds/istore feeds/istore_packages package/pw-luci package/pw2-luci package/lucky package/luci-app-dockerman package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns"
-# ========== 【修改结束】 ==========
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
@@ -136,82 +95,56 @@ for dir in $THIRD_PARTY_DIRS; do
     fi
 done
 
-echo "净化完成，清空编译系统缓存并重建索引..."
 rm -rf tmp/
 ./scripts/feeds update -i
 ./scripts/feeds install -a
 ./scripts/feeds install -p istore_packages luci-app-zerotier
 
-# =================================================================
-# 4. 动态最新版注入与系统核心剥离
-# =================================================================
+
+# 5. 动态最新版本注入
+echo "注入动态最新版本号..."
+
+# Sing-Box
 SING_BOX_LATEST=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
 if [ -n "$SING_BOX_LATEST" ] && [ -f "package/pw-luci/sing-box/Makefile" ]; then
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SING_BOX_LATEST/" package/pw-luci/sing-box/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/pw-luci/sing-box/Makefile
 fi
 
+# DDNS-GO
 DDNS_GO_LATEST=$(curl -s "https://api.github.com/repos/jeessy2/ddns-go/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
 if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$DDNS_GO_LATEST/" package/ddns-go/ddns-go/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
-# ========== 【专业审计修复：彻底解决 SmartDNS 下载失败/版本不匹配问题】 ==========
+# [修改处: DAE 版本注入与 fallback 机制优化]
+DAE_LATEST=$(curl -s "https://api.github.com/repos/daeuniverse/dae/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^v//')
+if [ -z "$DAE_LATEST" ]; then DAE_LATEST="1.1.0"; fi
+sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$DAE_LATEST/g" package/dae/Makefile
+sed -i "s/PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=v$DAE_LATEST/g" package/dae/Makefile
+
+# [修改处: SmartDNS 暴力结构重建，100%匹配最新Tag]
 SMARTDNS_LATEST=$(curl -s "https://api.github.com/repos/pymumu/smartdns/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^Release//')
-
-# 兜底机制：如果 API 请求频繁被限制导致为空，强制使用最新的 48.1 保证 download 正常
-if [ -z "$SMARTDNS_LATEST" ]; then
-    SMARTDNS_LATEST="48.1"
-fi
-
+if [ -z "$SMARTDNS_LATEST" ]; then SMARTDNS_LATEST="48.1"; fi
 if [ -f "package/smartdns/Makefile" ]; then
-    echo "正在强制注入 SmartDNS 最新版本: Release$SMARTDNS_LATEST ..."
-    # 1. 暴力删除图纸里原有的版本和哈希，防止 sed 匹配失败导致旧参数残留
     sed -i '/PKG_VERSION:=/d' package/smartdns/Makefile
     sed -i '/PKG_SOURCE_VERSION:=/d' package/smartdns/Makefile
     sed -i '/PKG_HASH:=/d' package/smartdns/Makefile
     sed -i '/PKG_MIRROR_HASH:=/d' package/smartdns/Makefile
-    
-    # 2. 在包名之后，精准插入最新版本、Tag 检出和双重跳过哈希指令，确保 100% 生效
     sed -i "/PKG_NAME:=.*/a PKG_VERSION:=$SMARTDNS_LATEST\nPKG_SOURCE_VERSION:=Release$SMARTDNS_LATEST\nPKG_HASH:=skip\nPKG_MIRROR_HASH:=skip" package/smartdns/Makefile
 fi
-# ==============================================================================
 
+
+# 6. 系统底层配置修改
+echo "执行底层剥离与参数调整..."
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]$ "' >> package/base-files/files/etc/profile
 sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" include/image.mk
 
-echo "执行底层剥离与配置注入..."
-touch .config
-
-sed -i '/luci-app-transmission/d' .config
-sed -i '/luci-i18n-transmission/d' .config
-sed -i '/transmission-daemon/d' .config
-sed -i '/luci-app-store/d' .config
-sed -i '/luci-i18n-store/d' .config
-
-echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
-echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
-
-# =================================================================
-# 5. 固件版本号与真实编译日期注入
-# =================================================================
-COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
-touch .config
-sed -i '/CONFIG_IMAGEOPT/d' .config
-sed -i '/CONFIG_VERSIONOPT/d' .config
-sed -i '/CONFIG_VERSION_NUMBER/d' .config
-sed -i '/CONFIG_VERSION_CODE/d' .config
-
-echo "CONFIG_IMAGEOPT=y" >> .config
-echo "CONFIG_VERSIONOPT=y" >> .config
-echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
-echo "CONFIG_VERSION_CODE=\"\"" >> .config
-
-# 强制中文
+# 写入中文预设
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language <<EOF
 #!/bin/sh
@@ -222,9 +155,38 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 
-# =================================================================
-# 6. 强制编译磁盘挂载核心组件
-# =================================================================
+
+# 7. 写入 .config 编译标识
+echo "注入组件编译配置..."
+touch .config
+
+# 剥离多余应用
+sed -i '/luci-app-transmission/d' .config
+sed -i '/luci-i18n-transmission/d' .config
+sed -i '/transmission-daemon/d' .config
+sed -i '/luci-app-store/d' .config
+sed -i '/luci-i18n-store/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-tailscale/d' .config
+sed -i '/CONFIG_PACKAGE_luci-i18n-tailscale/d' .config
+sed -i '/CONFIG_PACKAGE_qemu-ga/d' .config
+
+# 基础设置
+echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
+echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
+echo "# CONFIG_PACKAGE_qemu-ga is not set" >> .config
+
+# 镜像版本号
+COMPILE_DATE_SHORT="$(date +"%y.%m.%d")"
+sed -i '/CONFIG_IMAGEOPT/d' .config
+sed -i '/CONFIG_VERSIONOPT/d' .config
+sed -i '/CONFIG_VERSION_NUMBER/d' .config
+sed -i '/CONFIG_VERSION_CODE/d' .config
+echo "CONFIG_IMAGEOPT=y" >> .config
+echo "CONFIG_VERSIONOPT=y" >> .config
+echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
+echo "CONFIG_VERSION_CODE=\"\"" >> .config
+
+# 磁盘挂载与文件系统
 echo "CONFIG_PACKAGE_block-mount=y" >> .config
 echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
 echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
@@ -233,6 +195,44 @@ echo "CONFIG_PACKAGE_kmod-fs-ntfs3=y" >> .config
 echo "CONFIG_PACKAGE_ntfs-3g=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nls-utf8=y" >> .config
 
+# 协议与代理插件 (PW1, PW2, DAE)
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
+echo "CONFIG_PACKAGE_hysteria=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y" >> .config
+echo "CONFIG_PACKAGE_sing-box=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y" >> .config
+echo "CONFIG_PACKAGE_xray-core=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Go=y" >> .config
+echo "CONFIG_PACKAGE_trojan-go=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
+echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
+
+echo "CONFIG_PACKAGE_dae=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
+
+# [修改处: 移除 PW2 失效的 INCLUDE 标签，追加推荐内核 mihomo]
+echo "CONFIG_PACKAGE_luci-app-passwall2=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y" >> .config
+echo "CONFIG_PACKAGE_mihomo=y" >> .config
+
+# 网络服务插件
+echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-ksmbd=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-ksmbd-zh-cn=y" >> .config
+echo "CONFIG_PACKAGE_wsdd2=y" >> .config
+echo "CONFIG_PACKAGE_autosamba=y" >> .config
+echo "CONFIG_PACKAGE_ttyd=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
+echo "CONFIG_PACKAGE_tailscale=y" >> .config
+echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+
+
+# 8. 自动挂载与自启服务脚本
+echo "注入自启动脚本..."
+
+# 自动挂载
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount <<'EOF'
 #!/bin/sh
 uci -q delete fstab.sda3
@@ -251,63 +251,9 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-auto-mount
 
-# =================================================================
-# 7. 协议核心唤醒及各项组件
-# =================================================================
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
-echo "CONFIG_PACKAGE_hysteria=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y" >> .config
-echo "CONFIG_PACKAGE_sing-box=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y" >> .config
-echo "CONFIG_PACKAGE_xray-core=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Go=y" >> .config
-echo "CONFIG_PACKAGE_trojan-go=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
-echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
-
-echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-ksmbd=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-ksmbd-zh-cn=y" >> .config
-echo "CONFIG_PACKAGE_wsdd2=y" >> .config
-echo "CONFIG_PACKAGE_autosamba=y" >> .config
-
-echo "CONFIG_PACKAGE_ttyd=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
-
-# ========== 【新增】PassWall2 相关配置 ==========
-echo "CONFIG_PACKAGE_luci-app-passwall2=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y" >> .config
-# ----------------- 【专业审计修改开始】 -----------------
-# 审计说明：PassWall2 已经抛弃了 1 代的 INCLUDE 架构，完全解耦。
-# 只要启用了 sing-box/xray 等内核（上面的 PassWall1 已启用），PW2 就会自动识别并调用。
-# 这里写入 INCLUDE 是无效参数，为了不删除你的代码，将其注释处理：
-# echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Hysteria=y" >> .config
-# echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_SingBox=y" >> .config
-# echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Xray=y" >> .config
-
-# 审计新增：PassWall2 强力推荐使用 mihomo (原 clash-meta) 内核，在此为你补全
-echo "CONFIG_PACKAGE_mihomo=y" >> .config
-# ----------------- 【专业审计修改结束】 -----------------
-# ========== 【新增结束】 ==========
-
-# === 修改：Tailscale 异地组网 (纯核心无LuCI) ===
-sed -i '/CONFIG_PACKAGE_luci-app-tailscale/d' .config
-sed -i '/CONFIG_PACKAGE_luci-i18n-tailscale/d' .config
-echo "CONFIG_PACKAGE_tailscale=y" >> .config
-echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
-
-# ========== 【新增】DAE 相关配置（确保最新 DAE 被编译进去） ==========
-echo "CONFIG_PACKAGE_dae=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
-# ========== 【新增结束】 ==========
-
-# === 核心修改：安全自启策略 (仅接管 SmartDNS，PassWall 继承系统默认或用户配置) ===
-mkdir -p package/base-files/files/etc/uci-defaults
+# DNS 服务自启接管
 cat > package/base-files/files/etc/uci-defaults/99-enable-services <<'EOF'
 #!/bin/sh
-# 强制开启 SmartDNS (提供稳定的国内 DNS 解析底座)
 uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
@@ -315,9 +261,10 @@ rm -f /etc/uci-defaults/99-enable-services
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
-# ==============================================================
 
-# ==================== 针对 6.18 内核环境的底层排雷与修复 ====================
+
+# 9. 内核 BPF 补丁
+echo "应用 BPF 内核网络参数..."
 for conf in target/linux/generic/config-*; do
     echo "CONFIG_NET_SCH_BPF=y" >> "$conf"
     echo "CONFIG_NET_ACT_BPF=y" >> "$conf"
@@ -329,8 +276,4 @@ for conf in target/linux/x86/config-*; do
     echo "CONFIG_NET_CLS_BPF=y" >> "$conf"
 done
 
-sed -i '/CONFIG_PACKAGE_qemu-ga/d' .config
-echo "# CONFIG_PACKAGE_qemu-ga is not set" >> .config
-# =========================================================================
-
-echo "=== diyyb1-part2.sh 执行完成，零警告护航模式就绪 ==="
+echo "=== diyyb1-part2.sh 执行完成，构建就绪 ==="
