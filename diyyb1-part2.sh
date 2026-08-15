@@ -80,9 +80,6 @@ sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
 
 # ----------------- 【专业审计修改开始】 -----------------
 # 额外保险：防止 PKG_SOURCE 指向错误
-# 审计说明：ImmortalWrt 原文件通过 git 拉取，OpenWrt 默认生成 .tar.xz，强行改后缀可能导致解压报错。
-# 审计操作：注释掉原有的强制重命名行，改为补齐跳过 MIRROR_HASH，依靠系统的原生 Git 封包机制最安全。
-# sed -i 's|^PKG_SOURCE:=.*|PKG_SOURCE:=dae-$(PKG_VERSION).tar.gz|g' package/dae/Makefile 2>/dev/null || true
 sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/dae/Makefile
 # ----------------- 【专业审计修改结束】 -----------------
 # ========== 【修改并已修正结束】 ==========
@@ -108,14 +105,16 @@ echo "处理 smartdns 和 luci-app-smartdns..."
 rm -rf feeds/packages/net/smartdns
 # 2. 拉取 pymumu 官方最新的 smartdns 核心 Makefile
 clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns master
-# === 【新增修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
+
+# === 【修复 1：解决 smartdns 相对路径引用 rust 导致编译失败的问题】 ===
 sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
-# === 【新增修复 2：强制跳过源码压缩包的 SHA256 哈希校验防报错】 ===
-sed -i 's/^PKG_HASH:=.*/PKG_HASH:=skip/g' package/smartdns/Makefile
-sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/smartdns/Makefile
-# === 【新增修复 3：修复缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
+
+# === 【专业审计调整：取消在此时执行不稳定的哈希sed替换，移至第 4 部分统一处理】 ===
+
+# === 【修复 3：修复缺少 zlib (libz.so.1) 依赖导致的打包失败】 ===
 sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
 # ===========================================================================
+
 # 3. 拉取官方最新的 LuCI 界面
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
@@ -158,17 +157,24 @@ if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
-# === 新增：强制抓取 SmartDNS 核心的绝对最新版本号，无视作者的图纸滞后 ===
+# ========== 【专业审计修复：彻底解决 SmartDNS 下载失败/版本不匹配问题】 ==========
 SMARTDNS_LATEST=$(curl -s "https://api.github.com/repos/pymumu/smartdns/releases/latest" | awk -F '"' '/tag_name/{print $4}' | sed 's/^Release//')
-if [ -n "$SMARTDNS_LATEST" ] && [ -f "package/smartdns/Makefile" ]; then
-    echo "获取到 SmartDNS 最新版本: Release$SMARTDNS_LATEST，正在强制注入..."
-    # 1. 修改编译产物的版本号显示
-    sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SMARTDNS_LATEST/" package/smartdns/Makefile
-    # 2. 【核心修正】：修改 Git 检出目标，强制拉取最新的 Tag 真实代码，而不是旧 Hash
-    sed -i "s/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=Release$SMARTDNS_LATEST/" package/smartdns/Makefile
-    # 3. 彻底免疫安全校验报错
-    sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/smartdns/Makefile
-    sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/" package/smartdns/Makefile
+
+# 兜底机制：如果 API 请求频繁被限制导致为空，强制使用最新的 48.1 保证 download 正常
+if [ -z "$SMARTDNS_LATEST" ]; then
+    SMARTDNS_LATEST="48.1"
+fi
+
+if [ -f "package/smartdns/Makefile" ]; then
+    echo "正在强制注入 SmartDNS 最新版本: Release$SMARTDNS_LATEST ..."
+    # 1. 暴力删除图纸里原有的版本和哈希，防止 sed 匹配失败导致旧参数残留
+    sed -i '/PKG_VERSION:=/d' package/smartdns/Makefile
+    sed -i '/PKG_SOURCE_VERSION:=/d' package/smartdns/Makefile
+    sed -i '/PKG_HASH:=/d' package/smartdns/Makefile
+    sed -i '/PKG_MIRROR_HASH:=/d' package/smartdns/Makefile
+    
+    # 2. 在包名之后，精准插入最新版本、Tag 检出和双重跳过哈希指令，确保 100% 生效
+    sed -i "/PKG_NAME:=.*/a PKG_VERSION:=$SMARTDNS_LATEST\nPKG_SOURCE_VERSION:=Release$SMARTDNS_LATEST\nPKG_HASH:=skip\nPKG_MIRROR_HASH:=skip" package/smartdns/Makefile
 fi
 # ==============================================================================
 
