@@ -1,7 +1,7 @@
 #!/bin/bash
-# diyyb1-part2.sh (更稳修复版)
+# diyyb1-part2.sh (最终稳定版)
 # 适用：N6000/PVE + 中文 + PassWall/PassWall2 + dae + Docker + SmartDNS
-# 保留原有全部功能，仅修复关键错误与脆弱点
+# 保留原有全部功能，仅修复关键错误（PassWall结构、版本获取、APK版本校验、dae内核选项等）
 set -e
 export GIT_TERMINAL_PROMPT=0
 
@@ -35,17 +35,20 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh (更稳版) ==="
+echo "=== 开始执行 diyyb1-part2.sh (最终稳定版) ==="
 
-# 1. 清理冲突依赖包（官方推荐列表 + 原有）
+# =================================================================
+# 1. 清理冲突依赖包
+# =================================================================
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
 
+# =================================================================
 # 2. 拉取第三方源码（PassWall 官方推荐方式，不再错误 merge）
+# =================================================================
 # PassWall 1
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/passwall-packages
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/passwall-luci
-# 可选：去掉不需要的 ssr（与原脚本保持一致）
 rm -rf package/passwall-packages/shadowsocksr-libev 2>/dev/null || true
 
 # PassWall 2
@@ -55,7 +58,7 @@ clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
-# DAE（从 immortalwrt 提取，保留原逻辑但更干净）
+# DAE（从 immortalwrt 提取）
 rm -rf package/dae package/luci-app-dae
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 if [ -d package/immortalwrt-packages/net/dae ]; then
@@ -66,7 +69,6 @@ rm -rf package/immortalwrt-packages
 git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 if [ -d package/immortalwrt-luci/applications/luci-app-dae ]; then
     mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
-    # 原脚本有此清理，保留
     rm -rf package/luci-app-dae/dae 2>/dev/null || true
 fi
 rm -rf package/immortalwrt-luci
@@ -82,7 +84,9 @@ clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns ma
 rm -rf package/luci-app-smartdns
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 
+# =================================================================
 # 3. 源码调整与依赖修复
+# =================================================================
 # DAE 路径修复与哈希跳过
 if [ -f package/dae/Makefile ]; then
     sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
@@ -116,30 +120,48 @@ else
 fi
 
 echo "执行包名净化，修复 APK 极度严格的版本号校验..."
-# 注意：将 feeds/istore_packages 加入了净化名单，且必须在 feeds update 之后执行
+
+# 注意：feeds/istore_packages 必须在 feeds update 之后加入净化名单
 THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/passwall2 package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns package/luci-app-dockerman feeds/istore_packages"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
-        # 去除无效的大于小于号依赖
+        # 1. 去除无效的大于小于号依赖
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} + || true
-        # 去除 'v' 前缀 (v1.2 -> 1.2)
+
+        # 2. 去除 'v' 前缀 (v1.2.3 -> 1.2.3)
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/g' {} + || true
-        # 【强力拦截】截断 PKG_VERSION 中任何非数字和点的违规字符 (如 1.3.0-1 -> 1.3.0, 1.3.0b -> 1.3.0)，完美适配 apk mkpkg
-        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9\.]+)[^0-9\.].*/\1/g' {} + || true
-        # 净化 PKG_RELEASE
+
+        # 3. 【关键】截断 PKG_VERSION 中第一个非法字符及其后面的内容
+        #    1.3.0-1     -> 1.3.0
+        #    1.3.0b      -> 1.3.0
+        #    4.78-4-xxx  -> 4.78
+        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9]+(\.[0-9]+)*)[^0-9.].*/\1/g' {} + || true
+
+        # 4. 净化 PKG_RELEASE，只保留数字；如果原来是空的，强制补 1
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*[0-9]+).*/\1/g' {} + || true
+        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=)[[:space:]]*$/\11/g' {} + || true
     fi
 done
 
+# 专门再强制修一次 istore 的 luci-app-zerotier（双保险）
+ZT_MK="feeds/istore_packages/luci-app-zerotier/Makefile"
+if [ -f "$ZT_MK" ]; then
+    echo "双保险修复 luci-app-zerotier 版本..."
+    sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=1.3.0/' "$ZT_MK"
+    sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' "$ZT_MK"
+    grep -q '^PKG_RELEASE:=' "$ZT_MK" || sed -i '/^PKG_VERSION:=/a PKG_RELEASE:=1' "$ZT_MK"
+fi
+
 ./scripts/feeds install -a
 ./scripts/feeds install -p istore_packages luci-app-zerotier 2>/dev/null || true
-# =================================================================
 
-# 5. 动态最新版本注入（更稳健）
-# Sing-Box（路径已改为 passwall-packages）
+# =================================================================
+# 5. 动态最新版本注入
+# =================================================================
+# Sing-Box
 SING_BOX_LATEST=$(get_latest_tag "SagerNet/sing-box")
-SING_BOX_LATEST=${SING_BOX_LATEST#v}   # 去掉 v 前缀
+SING_BOX_LATEST=${SING_BOX_LATEST#v}
 if [ -n "$SING_BOX_LATEST" ] && [ -f "package/passwall-packages/sing-box/Makefile" ]; then
     echo "更新 sing-box 到 $SING_BOX_LATEST"
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SING_BOX_LATEST/" package/passwall-packages/sing-box/Makefile
@@ -158,7 +180,6 @@ fi
 
 # SmartDNS
 SMARTDNS_TAG=$(get_latest_tag "pymumu/smartdns")
-# tag 通常是 Release48.4
 SMARTDNS_LATEST=$(echo "$SMARTDNS_TAG" | sed 's/^Release//')
 if [ -z "$SMARTDNS_LATEST" ]; then
     SMARTDNS_LATEST="48.4"
@@ -172,7 +193,9 @@ if [ -f "package/smartdns/Makefile" ]; then
     sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g" package/smartdns/Makefile
 fi
 
-# 6. 系统底层配置修改（保留原有）
+# =================================================================
+# 6. 系统底层配置修改
+# =================================================================
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=165535' >> package/base-files/files/etc/sysctl.conf
@@ -189,9 +212,10 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 
-# 7. 写入 .config 编译标识（保留原有插件列表，修复矛盾）
+# =================================================================
+# 7. 写入 .config 编译标识
+# =================================================================
 touch .config
-# 清理不需要的
 sed -i '/luci-app-transmission/d' .config
 sed -i '/luci-i18n-transmission/d' .config
 sed -i '/transmission-daemon/d' .config
@@ -222,7 +246,7 @@ echo "CONFIG_PACKAGE_kmod-fs-ntfs3=y" >> .config
 echo "CONFIG_PACKAGE_ntfs-3g=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nls-utf8=y" >> .config
 
-# PassWall 相关（最新核心）
+# PassWall 相关
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
 echo "CONFIG_PACKAGE_hysteria=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y" >> .config
@@ -260,7 +284,9 @@ echo "CONFIG_PACKAGE_docker=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-dockerman=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-dockerman-zh-cn=y" >> .config
 
-# 8. 自动挂载与自启服务脚本（保留原有 PVE sda3 逻辑）
+# =================================================================
+# 8. 自动挂载与自启服务脚本
+# =================================================================
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount <<'EOF'
 #!/bin/sh
 uci -q delete fstab.sda3
@@ -289,7 +315,9 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
 
-# 9. 内核 BPF / BTF / XDP 补丁（dae 必需，补全原脚本缺失项）
+# =================================================================
+# 9. 内核 BPF / BTF / XDP 补丁（dae 必需）
+# =================================================================
 for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     [ -f "$conf" ] || continue
     {
@@ -309,4 +337,4 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     } >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（更稳版） ==="
+echo "=== diyyb1-part2.sh 执行完成（最终稳定版） ==="
