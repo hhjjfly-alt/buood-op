@@ -99,17 +99,10 @@ if [ -f package/smartdns/Makefile ]; then
     sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
 fi
 
-# 4. 净化环境与更新 Feeds
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/passwall2 package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns package/luci-app-dockerman"
-for dir in $THIRD_PARTY_DIRS; do
-    if [ -d "$dir" ]; then
-        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} + || true
-        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/g' {} + || true
-        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9\.]+).*/\1/g' {} + || true
-        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*[0-9]+).*/\1/g' {} + || true
-    fi
-done
-
+# =================================================================
+# 4. 更新 Feeds 与环境净化 (适配 APK 严格版本规范)
+# =================================================================
+echo "更新 Feeds 源..."
 rm -rf tmp/
 ./scripts/feeds update -i
 
@@ -122,8 +115,26 @@ else
     echo "警告：dockerd 补丁下载失败，继续执行（可能影响 Docker 构建）"
 fi
 
+echo "执行包名净化，修复 APK 极度严格的版本号校验..."
+# 注意：将 feeds/istore_packages 加入了净化名单，且必须在 feeds update 之后执行
+THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/passwall2 package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns package/luci-app-dockerman feeds/istore_packages"
+
+for dir in $THIRD_PARTY_DIRS; do
+    if [ -d "$dir" ]; then
+        # 去除无效的大于小于号依赖
+        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} + || true
+        # 去除 'v' 前缀 (v1.2 -> 1.2)
+        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/g' {} + || true
+        # 【强力拦截】截断 PKG_VERSION 中任何非数字和点的违规字符 (如 1.3.0-1 -> 1.3.0, 1.3.0b -> 1.3.0)，完美适配 apk mkpkg
+        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9\.]+)[^0-9\.].*/\1/g' {} + || true
+        # 净化 PKG_RELEASE
+        find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*[0-9]+).*/\1/g' {} + || true
+    fi
+done
+
 ./scripts/feeds install -a
 ./scripts/feeds install -p istore_packages luci-app-zerotier 2>/dev/null || true
+# =================================================================
 
 # 5. 动态最新版本注入（更稳健）
 # Sing-Box（路径已改为 passwall-packages）
