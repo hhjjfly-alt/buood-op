@@ -1,7 +1,7 @@
 #!/bin/bash
-# diyyb1-part2.sh (最终稳定版)
-# 适用：N6000/PVE + 中文 + PassWall/PassWall2 + dae + Docker + SmartDNS
-# 保留原有全部功能，仅修复关键错误（PassWall结构、版本获取、APK版本校验、dae内核选项等）
+# diyyb1-part2.sh (无 Docker 极速纯净版)
+# 适用：N6000/PVE + 中文 + PassWall/PassWall2 + dae + SmartDNS
+# 已彻底删除所有 Docker / dockerd / luci-app-dockerman 相关代码
 set -e
 export GIT_TERMINAL_PROMPT=0
 
@@ -23,7 +23,6 @@ clone_or_pull() {
     fi
 }
 
-# 更稳健的 GitHub 最新 tag 获取
 get_latest_tag() {
     local repo="$1"
     local tag
@@ -35,7 +34,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh (最终稳定版) ==="
+echo "=== 开始执行 diyyb1-part2.sh (无 Docker 纯净版) ==="
 
 # =================================================================
 # 1. 清理冲突依赖包
@@ -44,7 +43,7 @@ rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,micr
 rm -rf feeds/luci/applications/luci-app-passwall
 
 # =================================================================
-# 2. 拉取第三方源码（PassWall 官方推荐方式，不再错误 merge）
+# 2. 拉取第三方源码（已删除所有 Docker 相关）
 # =================================================================
 # PassWall 1
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/passwall-packages
@@ -54,11 +53,10 @@ rm -rf package/passwall-packages/shadowsocksr-libev 2>/dev/null || true
 # PassWall 2
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/passwall2
 
-# Lucky & Dockerman
+# Lucky
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
-clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/luci-app-dockerman
 
-# DAE（从 immortalwrt 提取）
+# DAE
 rm -rf package/dae package/luci-app-dae
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 if [ -d package/immortalwrt-packages/net/dae ]; then
@@ -87,7 +85,6 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 # =================================================================
 # 3. 源码调整与依赖修复
 # =================================================================
-# DAE 路径修复与哈希跳过
 if [ -f package/dae/Makefile ]; then
     sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
     sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
@@ -96,8 +93,6 @@ fi
 if [ -f package/luci-app-dae/Makefile ]; then
     sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
 fi
-
-# SmartDNS 路径与 zlib 依赖修复
 if [ -f package/smartdns/Makefile ]; then
     sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
     sed -i 's/DEPENDS:=.*/& +zlib/g' package/smartdns/Makefile
@@ -110,44 +105,23 @@ echo "更新 Feeds 源..."
 rm -rf tmp/
 ./scripts/feeds update -i
 
-# 应用 dockerd 补丁（失败不中断整体流程）
-mkdir -p ./feeds/packages/utils/dockerd/patches
-if wget -q -O ./feeds/packages/utils/dockerd/patches/001-skip-copy-nested-binaries.patch \
-    https://raw.githubusercontent.com/AndyChiang888/packages/refs/heads/dockerd/utils/dockerd/patches/001-skip-copy-nested-binaries.patch; then
-    echo "dockerd patch applied"
-else
-    echo "警告：dockerd 补丁下载失败，继续执行（可能影响 Docker 构建）"
-fi
-
-echo "执行包名净化，修复 APK 极度严格的版本号校验..."
-
-# 注意：feeds/istore_packages 必须在 feeds update 之后加入净化名单
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/passwall2 package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns package/luci-app-dockerman feeds/istore_packages"
+echo "执行包名净化，修复 APK 版本号校验..."
+THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/passwall2 package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
 
 for dir in $THIRD_PARTY_DIRS; do
     if [ -d "$dir" ]; then
-        # 1. 去除无效的大于小于号依赖
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/\([<=>]+[^)]+\)//g' {} + || true
-
-        # 2. 去除 'v' 前缀 (v1.2.3 -> 1.2.3)
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/g' {} + || true
-
-        # 3. 【关键】截断 PKG_VERSION 中第一个非法字符及其后面的内容
-        #    1.3.0-1     -> 1.3.0
-        #    1.3.0b      -> 1.3.0
-        #    4.78-4-xxx  -> 4.78
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9]+(\.[0-9]+)*)[^0-9.].*/\1/g' {} + || true
-
-        # 4. 净化 PKG_RELEASE，只保留数字；如果原来是空的，强制补 1
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*[0-9]+).*/\1/g' {} + || true
         find "$dir" -type f -name "Makefile" -exec sed -i -E 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=)[[:space:]]*$/\11/g' {} + || true
     fi
 done
 
-# 专门再强制修一次 istore 的 luci-app-zerotier（双保险）
+# 双保险修复 luci-app-zerotier
 ZT_MK="feeds/istore_packages/luci-app-zerotier/Makefile"
 if [ -f "$ZT_MK" ]; then
-    echo "双保险修复 luci-app-zerotier 版本..."
+    echo "修复 luci-app-zerotier 版本..."
     sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=1.3.0/' "$ZT_MK"
     sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' "$ZT_MK"
     grep -q '^PKG_RELEASE:=' "$ZT_MK" || sed -i '/^PKG_VERSION:=/a PKG_RELEASE:=1' "$ZT_MK"
@@ -159,7 +133,6 @@ fi
 # =================================================================
 # 5. 动态最新版本注入
 # =================================================================
-# Sing-Box
 SING_BOX_LATEST=$(get_latest_tag "SagerNet/sing-box")
 SING_BOX_LATEST=${SING_BOX_LATEST#v}
 if [ -n "$SING_BOX_LATEST" ] && [ -f "package/passwall-packages/sing-box/Makefile" ]; then
@@ -169,7 +142,6 @@ if [ -n "$SING_BOX_LATEST" ] && [ -f "package/passwall-packages/sing-box/Makefil
     sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/" package/passwall-packages/sing-box/Makefile 2>/dev/null || true
 fi
 
-# DDNS-GO
 DDNS_GO_LATEST=$(get_latest_tag "jeessy2/ddns-go")
 DDNS_GO_LATEST=${DDNS_GO_LATEST#v}
 if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
@@ -178,7 +150,6 @@ if [ -n "$DDNS_GO_LATEST" ] && [ -f "package/ddns-go/ddns-go/Makefile" ]; then
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
-# SmartDNS
 SMARTDNS_TAG=$(get_latest_tag "pymumu/smartdns")
 SMARTDNS_LATEST=$(echo "$SMARTDNS_TAG" | sed 's/^Release//')
 if [ -z "$SMARTDNS_LATEST" ]; then
@@ -213,7 +184,7 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 
 # =================================================================
-# 7. 写入 .config 编译标识
+# 7. 写入 .config 编译标识（已彻底删除所有 Docker 相关）
 # =================================================================
 touch .config
 sed -i '/luci-app-transmission/d' .config
@@ -222,6 +193,11 @@ sed -i '/transmission-daemon/d' .config
 sed -i '/luci-app-store/d' .config
 sed -i '/luci-i18n-store/d' .config
 sed -i '/CONFIG_PACKAGE_qemu-ga/d' .config
+# 强制删除可能残留的 Docker 配置
+sed -i '/dockerd/d' .config
+sed -i '/docker/d' .config
+sed -i '/luci-app-dockerman/d' .config
+sed -i '/luci-i18n-dockerman/d' .config
 
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
@@ -237,7 +213,7 @@ echo "CONFIG_VERSIONOPT=y" >> .config
 echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
 echo "CONFIG_VERSION_CODE=\"\"" >> .config
 
-# 文件系统与挂载
+# 文件系统
 echo "CONFIG_PACKAGE_block-mount=y" >> .config
 echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
 echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
@@ -246,7 +222,9 @@ echo "CONFIG_PACKAGE_kmod-fs-ntfs3=y" >> .config
 echo "CONFIG_PACKAGE_ntfs-3g=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nls-utf8=y" >> .config
 
-# PassWall 相关
+# PassWall 1（补全主包）
+echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
 echo "CONFIG_PACKAGE_hysteria=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y" >> .config
@@ -263,11 +241,11 @@ echo "CONFIG_PACKAGE_dae=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
 
-# PassWall2
+# PassWall 2
 echo "CONFIG_PACKAGE_luci-app-passwall2=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y" >> .config
 
-# 其他原有插件
+# 其他插件
 echo "CONFIG_PACKAGE_mihomo=y" >> .config
 echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ksmbd=y" >> .config
@@ -279,13 +257,9 @@ echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_tailscale=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
-echo "CONFIG_PACKAGE_dockerd=y" >> .config
-echo "CONFIG_PACKAGE_docker=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-dockerman=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-dockerman-zh-cn=y" >> .config
 
 # =================================================================
-# 8. 自动挂载与自启服务脚本
+# 8. 自动挂载与自启服务脚本（已删除 Docker 相关）
 # =================================================================
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount <<'EOF'
 #!/bin/sh
@@ -299,7 +273,6 @@ uci set fstab.sda3.enabled="1"
 uci commit fstab
 /etc/init.d/fstab enable
 block mount
-[ -x /etc/init.d/dockerd ] && /etc/init.d/dockerd restart || true
 rm -f /etc/uci-defaults/99-auto-mount
 exit 0
 EOF
@@ -316,7 +289,7 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
 
 # =================================================================
-# 9. 内核 BPF / BTF / XDP 补丁（dae 必需）
+# 9. 内核 BPF / BTF / XDP 补丁（dae 需要）
 # =================================================================
 for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     [ -f "$conf" ] || continue
@@ -337,4 +310,4 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     } >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（最终稳定版） ==="
+echo "=== diyyb1-part2.sh 执行完成（无 Docker 纯净版） ==="
