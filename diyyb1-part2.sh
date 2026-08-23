@@ -1,9 +1,10 @@
 #!/bin/bash
 # diyyb1-part2.sh
-# 最终生产精简版（已修复 smartdns 哈希问题）
+# 最终生产精简版（已修复 smartdns 哈希问题 + 强制禁用 Docker）
 # 适配最新 OpenWrt + N6000/PVE + I226
 # 保留：中文 + PassWall/PassWall2 + dae + SmartDNS + Lucky + DDNS-GO + Diskman + Tailscale + ksmbd + ttyd + Zerotier
 # 强制保留：firewall4 + nftables
+# 强制禁用：Docker 全家桶
 set -e
 export GIT_TERMINAL_PROMPT=0
 
@@ -35,7 +36,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（最终生产精简版 - 已修复 smartdns） ==="
+echo "=== 开始执行 diyyb1-part2.sh（最终生产精简版 - 强制禁用 Docker） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包
@@ -184,7 +185,7 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 
 ##############################################################################
-# 7. 精简 .config（最终生产版）
+# 7. 精简 .config（最终生产版 + 强制禁用 Docker）
 ##############################################################################
 touch .config
 
@@ -192,6 +193,15 @@ touch .config
 sed -i '/luci-app-transmission/d;/transmission-daemon/d' .config
 sed -i '/luci-app-store/d;/luci-i18n-store/d' .config
 sed -i '/qemu-ga/d;/dockerd/d;/docker/d;/dockerman/d;/mihomo/d' .config
+
+# 强制禁用 Docker 全家桶（彻底阻止被依赖拉入编译）
+echo "# CONFIG_PACKAGE_dockerd is not set" >> .config
+echo "# CONFIG_PACKAGE_docker is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-app-dockerman is not set" >> .config
+echo "# CONFIG_PACKAGE_containerd is not set" >> .config
+echo "# CONFIG_PACKAGE_runc is not set" >> .config
+echo "# CONFIG_PACKAGE_tini is not set" >> .config
+echo "# CONFIG_PACKAGE_libnetwork is not set" >> .config
 
 # 中文
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
@@ -387,7 +397,7 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     } >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（最终生产精简版 - smartdns 哈希已修复） ==="
+echo "=== diyyb1-part2.sh 执行完成（最终生产精简版 - 强制禁用 Docker） ==="
 echo "推荐后续命令："
 echo "  make defconfig"
 echo "  make download -j\$(nproc)"
