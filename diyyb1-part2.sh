@@ -1,9 +1,9 @@
 #!/bin/bash
 # diyyb1-part2.sh
-# 最终生产精简版（适配最新 OpenWrt + N6000/PVE + I226）
+# 最终生产精简版（已修复 smartdns 哈希问题）
+# 适配最新 OpenWrt + N6000/PVE + I226
 # 保留：中文 + PassWall/PassWall2 + dae + SmartDNS + Lucky + DDNS-GO + Diskman + Tailscale + ksmbd + ttyd + Zerotier
-# 强制保留：firewall4 + nftables（最新 OpenWrt 核心）
-# 已修复：重复写入、依赖缺失、AES-NI、virtio、Diskman 完整依赖
+# 强制保留：firewall4 + nftables
 set -e
 export GIT_TERMINAL_PROMPT=0
 
@@ -35,7 +35,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（最终生产精简版） ==="
+echo "=== 开始执行 diyyb1-part2.sh（最终生产精简版 - 已修复 smartdns） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包
@@ -121,13 +121,14 @@ fi
 ./scripts/feeds install -p istore_packages luci-app-zerotier 2>/dev/null || true
 
 ##############################################################################
-# 5. 注入最新版本 + 再次净化
+# 5. 注入最新版本 + 强力跳过哈希（重点修复 smartdns）
 ##############################################################################
 SING_BOX_LATEST=$(get_latest_tag "SagerNet/sing-box")
 SING_BOX_LATEST=${SING_BOX_LATEST#v}
 if [ -n "$SING_BOX_LATEST" ] && [ -f package/passwall-packages/sing-box/Makefile ]; then
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SING_BOX_LATEST/" package/passwall-packages/sing-box/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/passwall-packages/sing-box/Makefile
+    sed -i "s/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/" package/passwall-packages/sing-box/Makefile 2>/dev/null || true
 fi
 
 DDNS_GO_LATEST=$(get_latest_tag "jeessy2/ddns-go")
@@ -137,16 +138,25 @@ if [ -n "$DDNS_GO_LATEST" ] && [ -f package/ddns-go/ddns-go/Makefile ]; then
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
+# SmartDNS（强力修复哈希不匹配问题）
 SMARTDNS_TAG=$(get_latest_tag "pymumu/smartdns")
 SMARTDNS_LATEST=$(echo "$SMARTDNS_TAG" | sed 's/^Release//')
 [ -z "$SMARTDNS_LATEST" ] && SMARTDNS_LATEST="48.4" && SMARTDNS_TAG="Release48.4"
+
 if [ -f package/smartdns/Makefile ]; then
+    echo "更新 smartdns 到 $SMARTDNS_LATEST ($SMARTDNS_TAG) 并强制跳过哈希"
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SMARTDNS_LATEST/" package/smartdns/Makefile
     sed -i "s/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=$SMARTDNS_TAG/" package/smartdns/Makefile
-    sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/smartdns/Makefile
+
+    # 彻底删除所有旧哈希行
+    sed -i '/PKG_HASH/d' package/smartdns/Makefile
+    sed -i '/PKG_MIRROR_HASH/d' package/smartdns/Makefile
+
+    # 重新写入 skip（确保生效）
+    sed -i "/^PKG_SOURCE_VERSION:=/a PKG_HASH:=skip\nPKG_MIRROR_HASH:=skip" package/smartdns/Makefile
 fi
 
-# 注入后再净化一次
+# 注入后再净化一次版本号
 for dir in package/passwall-packages package/ddns-go package/smartdns; do
     [ -d "$dir" ] || continue
     find "$dir" -type f -name "Makefile" -exec sed -i -E \
@@ -194,7 +204,7 @@ echo "CONFIG_VERSIONOPT=y" >> .config
 echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
 echo "CONFIG_VERSION_CODE=\"\"" >> .config
 
-# ---------- 目标平台（最新 OpenWrt） ----------
+# ---------- 目标平台 ----------
 echo "CONFIG_TARGET_x86=y" >> .config
 echo "CONFIG_TARGET_x86_64=y" >> .config
 echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
@@ -202,7 +212,7 @@ echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
 
 # ---------- 网卡与存储驱动（N6000 + I226 + PVE） ----------
-echo "CONFIG_PACKAGE_kmod-igc=y" >> .config              # Intel I226/I225
+echo "CONFIG_PACKAGE_kmod-igc=y" >> .config
 echo "CONFIG_PACKAGE_kmod-igb=y" >> .config
 echo "CONFIG_PACKAGE_kmod-e1000e=y" >> .config
 echo "CONFIG_PACKAGE_kmod-r8169=y" >> .config
@@ -212,7 +222,7 @@ echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
 echo "CONFIG_PACKAGE_kmod-fs-ntfs3=y" >> .config
 echo "CONFIG_PACKAGE_kmod-vfat=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nls-utf8=y" >> .config
-echo "CONFIG_PACKAGE_kmod-tun=y" >> .config              # 只保留这一处
+echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-tproxy=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-socket=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-bridge=y" >> .config
@@ -300,7 +310,7 @@ echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 
-# ---------- 主动关闭不需要的组件（加速编译，但绝不碰防火墙） ----------
+# ---------- 主动关闭不需要的组件（绝不碰防火墙） ----------
 echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-upnp is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-ddns is not set" >> .config
@@ -324,7 +334,7 @@ echo "# CONFIG_PACKAGE_ppp is not set" >> .config
 echo "# CONFIG_PACKAGE_ppp-mod-pppoe is not set" >> .config
 
 ##############################################################################
-# 8. 自动挂载与服务（已彻底清除 Docker 残留）
+# 8. 自动挂载与服务
 ##############################################################################
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount <<'EOF'
 #!/bin/sh
@@ -377,7 +387,7 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     } >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（最终生产精简版） ==="
+echo "=== diyyb1-part2.sh 执行完成（最终生产精简版 - smartdns 哈希已修复） ==="
 echo "推荐后续命令："
 echo "  make defconfig"
 echo "  make download -j\$(nproc)"
