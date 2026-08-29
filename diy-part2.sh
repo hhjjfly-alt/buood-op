@@ -7,6 +7,7 @@
 #  4. SmartDNS 版本 bump
 #  5. 额外插件（lucky & dockerman）幂等克隆
 #  6. 连接数优化 & 其它系统调优
+
 ########### 万能函数：克隆或拉取最新 ###########
 clone_or_pull() {
   local repo=$1 dir=$2
@@ -19,12 +20,14 @@ clone_or_pull() {
     git clone --depth 1 "$repo" "$dir"
   fi
 }
+
 ########### 0. 若 istore 已存在则跳过（避免重复） ###########
 grep -q '^src-git istore' feeds.conf.default || {
   echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
   ./scripts/feeds update istore
   ./scripts/feeds install -d y -p istore luci-app-store
 }
+
 ########### 1. 最新 PassWall（删-拉-覆盖法） ###########
 # 1.1 删光 lean 老包（确保官方包优先级最高）
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
@@ -87,3 +90,14 @@ echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]
 # sed -i '/dnsmasq/d' include/target.mk
 # 6.2 默认开启 WiFi（无无线可忽略）
 # sed -i 's/disabled=1/disabled=0/g' package/kernel/mac80211/files/lib/wifi/mac80211.sh
+
+########### 7. 修复 Docker 编译错误 (参考 coolsnowwolf issue 14107) ###########
+echo "替换损坏的 Docker 核心包为 Lean 稳定版源码..."
+rm -rf feeds/packages/utils/docker feeds/packages/utils/dockerd feeds/packages/utils/containerd feeds/packages/utils/runc
+git clone --depth 1 https://github.com/coolsnowwolf/packages.git tmp_packages
+cp -r tmp_packages/utils/docker feeds/packages/utils/
+cp -r tmp_packages/utils/dockerd feeds/packages/utils/
+cp -r tmp_packages/utils/containerd feeds/packages/utils/
+cp -r tmp_packages/utils/runc feeds/packages/utils/
+rm -rf tmp_packages
+./scripts/feeds install -a
