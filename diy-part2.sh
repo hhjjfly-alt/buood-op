@@ -1,7 +1,7 @@
 #!/bin/bash
 # diy-part2.sh  （After Update feeds）
 # 针对 coolsnowwolf/lede 最终加固版
-# 保留原功能 + 严格错误控制 + 幂等 + Docker 安全修复（无 fragile patch / 无 Compile 注入）
+# Docker 修复对齐 openwrt/packages PR #30288（已对 docker-v29.6.1 验证）
 
 set -eo pipefail
 
@@ -10,7 +10,6 @@ clone_or_pull() {
   local repo="$1"
   local dir="$2"
   local branch="${3:-}"
-
   if [[ -d "$dir/.git" ]]; then
     echo ">>> Update $dir ..."
     git -C "$dir" remote set-url origin "$repo" 2>/dev/null || true
@@ -38,7 +37,6 @@ clone_or_pull() {
   fi
 }
 
-# 幂等追加一行（已存在则跳过）
 append_if_missing() {
   local line="$1"
   local file="$2"
@@ -46,34 +44,26 @@ append_if_missing() {
   grep -qxF "$line" "$file" 2>/dev/null || echo "$line" >> "$file"
 }
 
-########### 0. istore（避免重复添加） ###########
+########### 0. istore ###########
 if ! grep -qE '^src-git[[:space:]]+istore[[:space:]]' feeds.conf.default 2>/dev/null; then
   echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
   ./scripts/feeds update istore
   ./scripts/feeds install -d y -p istore luci-app-store
 fi
 
-########### 1. 最新 PassWall（官方独立分仓规范） ###########
-# 1.1 清理 feeds 自带冲突包
+########### 1. PassWall ###########
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin}
 rm -rf feeds/luci/applications/luci-app-passwall
-
-# 1.2 独立克隆（切勿合并覆盖）
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/passwall-packages
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/passwall-luci
 
-########### 2. 默认 IP / 固件名 / 系统版本（lede） ###########
-# 2.1 默认 IP
+########### 2. 默认 IP / 固件名 / 系统版本 ###########
 if [[ -f package/base-files/files/bin/config_generate ]]; then
   sed -i 's/192\.168\.1\.1/10.0.0.10/g' package/base-files/files/bin/config_generate
 fi
-
-# 2.2 固件名加日期
 if [[ -f include/image.mk ]]; then
   sed -i 's/IMG_PREFIX:=.*/IMG_PREFIX:=full-$(shell date +%Y%m%d)-$(VERSION_DIST_SANITIZED)/g' include/image.mk
 fi
-
-# 2.3 系统版本加日期（lede default-settings）
 if [[ -f package/lean/default-settings/files/zzz-default-settings ]]; then
   pushd package/lean/default-settings/files >/dev/null
   sed -i '/http/d' zzz-default-settings 2>/dev/null || true
@@ -86,8 +76,7 @@ if [[ -f package/lean/default-settings/files/zzz-default-settings ]]; then
   popd >/dev/null
 fi
 
-########### 3. SmartDNS 版本 Bump ###########
-# 强制版本 + skip hash（与原意图一致）。若 feeds 已足够新可整段注释。
+########### 3. SmartDNS ###########
 SMARTDNS_MK="feeds/packages/net/smartdns/Makefile"
 if [[ -f "$SMARTDNS_MK" ]]; then
   echo ">>> Bumping SmartDNS (hash check skipped)"
@@ -97,68 +86,46 @@ if [[ -f "$SMARTDNS_MK" ]]; then
   sed -i -E 's/^PKG_HASH:=.*/PKG_HASH:=skip/' "$SMARTDNS_MK"
 fi
 
-########### 4. 额外插件（幂等） ###########
+########### 4. 额外插件 ###########
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 mkdir -p package/lean
 clone_or_pull https://github.com/lisaac/luci-app-dockerman.git package/lean/luci-app-dockerman
 
-########### 5. 系统调优（幂等） ###########
+########### 5. 系统调优 ###########
 mkdir -p package/base-files/files/etc
 append_if_missing 'net.netfilter.nf_conntrack_max=165535' package/base-files/files/etc/sysctl.conf
-
 PROFILE="package/base-files/files/etc/profile"
 mkdir -p "$(dirname "$PROFILE")"
 if ! grep -q 'PS1=.*\\u@\\h' "$PROFILE" 2>/dev/null; then
   echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> "$PROFILE"
 fi
 
-########### 6. 修复 dockerd 编译错误（lede Issue #14107） ###########
-# 原因：Docker 29.x binary-daemon 在交叉编译环境中 command -v 为空，
-#       cp 收到空参数直接失败。
-# 策略：不写 fragile unified diff，不往 Compile 中间插行；
-#       在 Build/Prepare 后对已解压源码做幂等 sed，最稳。
-
-DOCKERD_MK=""
+########### 6. dockerd 修复（PR #30288 官方补丁，已验证） ###########
+DOCKERD_DIR=""
 for candidate in \
-  feeds/packages/utils/dockerd/Makefile \
-  package/feeds/packages/utils/dockerd/Makefile
+  feeds/packages/utils/dockerd \
+  package/feeds/packages/utils/dockerd
 do
-  [[ -f "$candidate" ]] && DOCKERD_MK="$candidate" && break
+  if [[ -f "$candidate/Makefile" ]]; then
+    DOCKERD_DIR="$candidate"
+    break
+  fi
 done
 
-if [[ -n "$DOCKERD_MK" ]]; then
-  if ! grep -q 'DIY_DOCKERD_SKIP_NESTED_COPY' "$DOCKERD_MK" 2>/dev/null; then
-    echo ">>> 向 dockerd Makefile 注入 Prepare 阶段源码修复..."
+if [[ -n "$DOCKERD_DIR" ]]; then
+  PATCH_DIR="$DOCKERD_DIR/patches"
+  mkdir -p "$PATCH_DIR"
+  PATCH_FILE="$PATCH_DIR/001-skip-copy-nested-binaries.patch"
 
-    if grep -q 'define Build/Prepare' "$DOCKERD_MK"; then
-      # 在第一个 Build/Prepare 的 endef 前插入，强制输出真实 Tab，避免 missing separator
-      awk '
-        /define Build\/Prepare/ { in_prep=1 }
-        in_prep && /^endef/ && !done {
-          print "\t# DIY_DOCKERD_SKIP_NESTED_COPY"
-          print "\tsed -i \"/Copying nested executables/,+12d\" $(PKG_BUILD_DIR)/hack/make/binary-daemon 2>/dev/null || true"
-          done=1
-        }
-        { print }
-      ' "$DOCKERD_MK" > "${DOCKERD_MK}.tmp" && mv "${DOCKERD_MK}.tmp" "$DOCKERD_MK"
-    else
-      # 极少数 Makefile 无标准 Prepare：追加自定义 Prepare
-      cat >> "$DOCKERD_MK" << 'MAKEEOF'
+  cat > "$PATCH_FILE" << 'PATCH_EOF'
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andy Chiang <AndyChiang_git@outlook.com>
+Date: Sun, 16 Aug 2026 22:50:48 +0700
+Subject: [PATCH] skip copy nested binaries
 
-define Build/Prepare
-	$(call Build/Prepare/Default)
-	# DIY_DOCKERD_SKIP_NESTED_COPY
-	sed -i "/Copying nested executables/,+12d" $(PKG_BUILD_DIR)/hack/make/binary-daemon 2>/dev/null || true
-endef
-MAKEEOF
-    fi
-  fi
-  echo ">>> dockerd 修复已就绪（Prepare 阶段源码 sed，无外部 patch）"
-else
-  echo ">>> 未找到 dockerd Makefile，跳过 Docker 修复"
-fi
+This script copies containerd, containerd-shim-runc-v2, ctr, runc,
+docker-init, rootlesskit, dockerd-rootless.sh, and dockerd-rootless-setuptool.sh
+into the `$dir` directory, which is unnecessary for OpenWrt. Moreover,
+if the host is missing any one of these files, cp will fail and cause an error.
 
-########### 7. 重新安装组件 ###########
-./scripts/feeds install -a 2>/dev/null || true
-
-echo ">>> diy-part2.sh（lede 最终加固版）执行完成"
+Fixes:
