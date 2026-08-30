@@ -111,12 +111,10 @@ do
     break
   fi
 done
-
 if [[ -n "$DOCKERD_DIR" ]]; then
   PATCH_DIR="$DOCKERD_DIR/patches"
   mkdir -p "$PATCH_DIR"
   PATCH_FILE="$PATCH_DIR/001-skip-copy-nested-binaries.patch"
-
   cat > "$PATCH_FILE" << 'PATCH_EOF'
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Andy Chiang <AndyChiang_git@outlook.com>
