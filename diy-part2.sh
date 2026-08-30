@@ -117,3 +117,42 @@ into the `$dir` directory, which is unnecessary for OpenWrt. Moreover,
 if the host is missing any one of these files, cp will fail and cause an error.
 
 Fixes:
+Copying nested executables into bundles/binary-daemon
+cp: cannot stat '': No such file or directory
+make[3]: *** [Makefile:166: /home/runner/work/Build/Build/openwrt/build_dir/target-x86_64_musl/dockerd-29.6.1/.built] Error 1
+
+Signed-off-by: Andy Chiang <AndyChiang_git@outlook.com>
+---
+ hack/make/binary-daemon | 16 +---------------
+ 1 file changed, 1 insertion(+), 15 deletions(-)
+
+--- a/hack/make/binary-daemon
++++ b/hack/make/binary-daemon
+@@ -2,21 +2,7 @@
+ set -e
+ 
+ copy_binaries() {
+-	local dir="${1:?}"
+-
+-	# Add nested executables to bundle dir so we have complete set of
+-	# them available, but only if the native OS/ARCH is the same as the
+-	# OS/ARCH of the build target
+-	if [ "$(go env GOOS)/$(go env GOARCH)" != "$(go env GOHOSTOS)/$(go env GOHOSTARCH)" ]; then
+-		return
+-	fi
+-	if [ ! -x /usr/local/bin/runc ]; then
+-		return
+-	fi
+-	echo "Copying nested executables into $dir"
+-	for file in containerd containerd-shim-runc-v2 ctr runc docker-init rootlesskit dockerd-rootless.sh dockerd-rootless-setuptool.sh; do
+-		cp -f "$(command -v "$file")" "$dir/"
+-	done
++	return
+ }
+ 
+ [ -z "$KEEPDEST" ] && rm -rf "$DEST"
+PATCH_EOF
+  echo ">>> Applied dockerd skip-copy-nested-binaries patch to $DOCKERD_DIR"
+else
+  echo ">>> WARNING: dockerd Makefile not found, skip patch"
+fi
