@@ -2,7 +2,7 @@
 # diyyb1-part2.sh
 # 最终生产精简版（已修复语法错误 + smartdns 哈希 + 强制禁用 Docker + sing-box 固定稳定版）
 # 适配最新 OpenWrt + N6000/PVE + I226
-# ===== 修改处：保留原有 luci-app-dae + 增加完整 daed Web 界面 + 清理 passwall2 =====
+# ===== 最终修改：只保留 luci-app-dae（轻度界面），已清理 passwall2 和 luci-app-daed =====
 set -e
 export GIT_TERMINAL_PROMPT=0
 clone_or_pull() {
@@ -31,7 +31,7 @@ get_latest_tag() {
         | sed -E 's/.*"([^"]+)".*/\1/')
     echo "$tag"
 }
-echo "=== 开始执行 diyyb1-part2.sh（最终生产精简版 + 完整 dae Web 界面 + 已清理 passwall2） ==="
+echo "=== 开始执行 diyyb1-part2.sh（最终生产精简版：只保留 luci-app-dae） ==="
 ##############################################################################
 # 1. 清理官方冲突包
 ##############################################################################
@@ -44,14 +44,13 @@ clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git 
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/passwall-luci
 rm -rf package/passwall-packages/shadowsocksr-libev 2>/dev/null || true
 
-# ===== 修改处：清理 passwall2（不再需要）=====
+# 清理 passwall2
 rm -rf package/passwall2
-# ===== 修改处结束 =====
 
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-# dae（保留原有 luci-app-dae）
-rm -rf package/dae package/luci-app-dae
+# dae（只保留 luci-app-dae）
+rm -rf package/dae package/luci-app-dae package/luci-app-daed
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 [ -d package/immortalwrt-packages/net/dae ] && mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
@@ -61,17 +60,6 @@ git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
     rm -rf package/luci-app-dae/dae 2>/dev/null || true
 }
 rm -rf package/immortalwrt-luci
-
-# ===== 修改处：增加完整 dae Web 控制界面（daed）=====
-rm -rf package/luci-app-daed
-clone_or_pull https://github.com/QiuSimons/luci-app-daed package/luci-app-daed
-# 备用拉取（防止主仓库不可用）
-if [ ! -d package/luci-app-daed ]; then
-    git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci-tmp
-    [ -d package/immortalwrt-luci-tmp/applications/luci-app-daed ] && mv package/immortalwrt-luci-tmp/applications/luci-app-daed package/luci-app-daed
-    rm -rf package/immortalwrt-luci-tmp
-fi
-# ===== 修改处结束 =====
 
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
@@ -90,14 +78,6 @@ if [ -f package/dae/Makefile ]; then
 fi
 [ -f package/luci-app-dae/Makefile ] && sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
 
-# ===== 修改处：修复 daed / luci-app-daed 路径与哈希 =====
-if [ -f package/luci-app-daed/Makefile ]; then
-    sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-daed/Makefile
-    sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/luci-app-daed/Makefile 2>/dev/null || true
-    sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/luci-app-daed/Makefile 2>/dev/null || true
-fi
-# ===== 修改处结束 =====
-
 if [ -f package/smartdns/Makefile ]; then
     sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
     # 正确添加 zlib 依赖（避免 +zlib 被当成 build 依赖）
@@ -110,9 +90,7 @@ fi
 ##############################################################################
 rm -rf tmp/
 ./scripts/feeds update -i
-# ===== 修改处：已移除 passwall2，保留 luci-app-dae + luci-app-daed =====
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/dae package/luci-app-dae package/luci-app-daed package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
-# ===== 修改处结束 =====
+THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
 for dir in $THIRD_PARTY_DIRS; do
     [ -d "$dir" ] || continue
     find "$dir" -type f -name "Makefile" -exec sed -i -E \
@@ -283,21 +261,16 @@ echo "CONFIG_PACKAGE_ipt2socks=y" >> .config
 echo "CONFIG_PACKAGE_v2ray-geodata=y" >> .config
 echo "CONFIG_PACKAGE_geoview=y" >> .config
 echo "CONFIG_PACKAGE_tcping=y" >> .config
-
-# ===== 修改处：彻底禁用 passwall2 =====
+# 彻底禁用 passwall2
 echo "# CONFIG_PACKAGE_luci-app-passwall2 is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn is not set" >> .config
-# ===== 修改处结束 =====
-
-# ---------- dae + 完整 Web 控制界面 ----------
+# ---------- dae（只保留轻度界面） ----------
 echo "CONFIG_PACKAGE_dae=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config                    # 原有轻度界面（保留）
+echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
-# ===== 修改处：启用完整 dae Web 控制界面（daed）=====
-echo "CONFIG_PACKAGE_luci-app-daed=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-daed-zh-cn=y" >> .config
-# ===== 修改处结束 =====
-
+# 禁用完整 daed（编译失败）
+echo "# CONFIG_PACKAGE_luci-app-daed is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-daed-zh-cn is not set" >> .config
 # ---------- 其他实用插件 ----------
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
@@ -316,10 +289,7 @@ echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> .config
-# ---------- 【修改处】去除 Tailscale 及其关联组件 ----------
-# (此处已删除原有 echo "CONFIG_PACKAGE_tailscale=y" >> .config 行)
-# ---------- 主动关闭不需要的组件（绝不碰防火墙） ----------
-# ---------- 【修改处】强化过滤：彻底显式禁用 Tailscale 相关依赖 ----------
+# ---------- 去除 Tailscale 及其关联组件 ----------
 echo "# CONFIG_PACKAGE_tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-tailscale-zh-cn is not set" >> .config
@@ -369,8 +339,7 @@ cat > package/base-files/files/etc/uci-defaults/99-enable-services << 'EOF'
 uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
-# ---------- 【修改处】禁止 PassWall 开机自启动 ----------
-# 设定 enabled 为 0，并安全禁用对应 init 服务
+# 禁止 PassWall 开机自启动
 uci -q set passwall.@global[0].enabled='0'
 uci commit passwall
 /etc/init.d/passwall disable || true
@@ -400,7 +369,7 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
         echo "CONFIG_NET_CLS_BPF=y"
     } >> "$conf"
 done
-echo "=== diyyb1-part2.sh 执行完成（最终生产精简版 + 完整 dae Web 界面 + 已清理 passwall2） ==="
+echo "=== diyyb1-part2.sh 执行完成（最终生产精简版：只保留 luci-app-dae） ==="
 echo "推荐后续命令："
 echo "  make defconfig"
 echo "  make download -j\$(nproc)"
