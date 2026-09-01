@@ -72,11 +72,12 @@ fi
 ########### 3. SmartDNS ###########
 SMARTDNS_MK="feeds/packages/net/smartdns/Makefile"
 if [[ -f "$SMARTDNS_MK" ]]; then
-  echo ">>> Bumping SmartDNS (hash check skipped)"
-  sed -i -E 's/^PKG_VERSION:=.*/PKG_VERSION:=1.2025.47/' "$SMARTDNS_MK"
-  sed -i -E 's/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=0f1912ab020ea9a60efac4732442f0bb7093f40b/' "$SMARTDNS_MK"
-  sed -i -E 's/^PKG_MIRROR_HASH:=.*/# &/' "$SMARTDNS_MK"
-  sed -i -E 's/^PKG_HASH:=.*/PKG_HASH:=skip/' "$SMARTDNS_MK"
+  echo ">>> Bumping SmartDNS to Release48 (hash check skipped)"
+  # 版本号必须对应 GitHub tag：Release48 → PKG_VERSION=48
+  sed -i -E 's/^PKG_VERSION:=.*/PKG_VERSION:=48/' "$SMARTDNS_MK"
+  # 跳过 hash 校验
+  sed -i -E 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/' "$SMARTDNS_MK" 2>/dev/null || true
+  sed -i -E 's/^PKG_HASH:=.*/PKG_HASH:=skip/' "$SMARTDNS_MK" 2>/dev/null || true
 fi
 ########### 4. 额外插件 ###########
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
