@@ -2,7 +2,7 @@
 # diyyb1-part2.sh
 # 最终生产精简版（已修复语法错误 + smartdns 哈希 + 强制禁用 Docker + sing-box 固定稳定版）
 # 适配最新 OpenWrt + N6000/PVE + I226
-# ===== 完整 Daed Web 界面版（已针对 GitHub Actions 前端 embed 问题做周全处理）=====
+# ===== 完整 Daed Web 界面版（已修复 daed / daed-geoip / daed-geosite 依赖问题）=====
 set -e
 export GIT_TERMINAL_PROMPT=0
 clone_or_pull() {
@@ -61,11 +61,10 @@ git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
 }
 rm -rf package/immortalwrt-luci
 
-# ===== 修改处：完整 Daed Web 界面（针对 GitHub Actions 前端 embed 问题强化）=====
+# ===== 完整 Daed Web 界面 =====
 rm -rf package/luci-app-daed package/daed
-# 主仓库
 clone_or_pull https://github.com/QiuSimons/luci-app-daed package/luci-app-daed
-# 备用拉取（防止主仓库失败）
+# 备用拉取
 if [ ! -d package/luci-app-daed ] || [ ! -f package/luci-app-daed/Makefile ]; then
     echo "主仓库拉取失败，尝试备用源..."
     rm -rf package/luci-app-daed
@@ -75,9 +74,8 @@ if [ ! -d package/luci-app-daed ] || [ ! -f package/luci-app-daed/Makefile ]; th
     fi
     rm -rf package/immortalwrt-luci-tmp
 fi
-# 强制清理可能残留的空 web 目录问题
 find package/luci-app-daed -type d -name "web" -exec rm -rf {} + 2>/dev/null || true
-# ===== 修改处结束 =====
+# ===== 结束 =====
 
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
@@ -96,27 +94,23 @@ if [ -f package/dae/Makefile ]; then
 fi
 [ -f package/luci-app-dae/Makefile ] && sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
 
-# ===== 修改处：完整 Daed 路径/哈希修复 + 前端构建强化 =====
+# ===== 修改处：完整 Daed 路径/哈希修复 + 强化主包处理 =====
 if [ -f package/luci-app-daed/Makefile ]; then
     sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-daed/Makefile
     sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/luci-app-daed/Makefile 2>/dev/null || true
     sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/luci-app-daed/Makefile 2>/dev/null || true
 fi
 
-# 处理 daed 子目录（最容易出 embed 问题的地方）
 if [ -d package/luci-app-daed/daed ]; then
-    # 强制跳过哈希
     find package/luci-app-daed/daed -name "Makefile" -exec sed -i \
         -e 's/PKG_HASH:=.*/PKG_HASH:=skip/g' \
         -e 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' \
         -e 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' \
         {} + 2>/dev/null || true
 
-    # 强化：确保前端构建步骤存在（解决 web embed 为空）
-    # 很多版本缺少明确的 pnpm build，这里做兼容性补丁
+    # 补充 node/host 依赖（解决前端 embed 问题）
     for mk in package/luci-app-daed/daed/Makefile package/luci-app-daed/Makefile; do
         [ -f "$mk" ] || continue
-        # 如果没有 node/host 依赖则补充
         if ! grep -q 'node/host' "$mk" 2>/dev/null; then
             sed -i '/PKG_BUILD_DEPENDS/s/$/ +node\/host/' "$mk" 2>/dev/null || \
             sed -i '/include $(INCLUDE_DIR)\/package.mk/a PKG_BUILD_DEPENDS:=node/host' "$mk" 2>/dev/null || true
@@ -127,7 +121,6 @@ fi
 
 if [ -f package/smartdns/Makefile ]; then
     sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
-    # 正确添加 zlib 依赖（避免 +zlib 被当成 build 依赖）
     if ! grep -q 'DEPENDS.*zlib' package/smartdns/Makefile; then
         sed -i 's/^DEPENDS:=/DEPENDS:=+zlib /' package/smartdns/Makefile
     fi
@@ -160,7 +153,6 @@ fi
 ##############################################################################
 # 5. 注入版本 + 强力跳过哈希
 ##############################################################################
-# Sing-Box（固定稳定版 1.12.12，避免 1.13.x 与当前 Go 环境不兼容）
 SING_BOX_LATEST="1.12.12"
 if [ -f package/passwall-packages/sing-box/Makefile ]; then
     echo "更新 sing-box 到 $SING_BOX_LATEST（固定稳定版，避免编译失败）"
@@ -174,7 +166,6 @@ if [ -n "$DDNS_GO_LATEST" ] && [ -f package/ddns-go/ddns-go/Makefile ]; then
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$DDNS_GO_LATEST/" package/ddns-go/ddns-go/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
-# SmartDNS（强力修复哈希不匹配问题）
 SMARTDNS_TAG=$(get_latest_tag "pymumu/smartdns")
 SMARTDNS_LATEST=$(echo "$SMARTDNS_TAG" | sed 's/^Release//')
 [ -z "$SMARTDNS_LATEST" ] && SMARTDNS_LATEST="48.4" && SMARTDNS_TAG="Release48.4"
@@ -186,7 +177,6 @@ if [ -f package/smartdns/Makefile ]; then
     sed -i '/PKG_MIRROR_HASH/d' package/smartdns/Makefile
     sed -i "/^PKG_SOURCE_VERSION:=/a PKG_HASH:=skip\nPKG_MIRROR_HASH:=skip" package/smartdns/Makefile
 fi
-# 注入后再净化一次版本号
 for dir in package/passwall-packages package/ddns-go package/smartdns; do
     [ -d "$dir" ] || continue
     find "$dir" -type f -name "Makefile" -exec sed -i -E \
@@ -202,7 +192,7 @@ echo 'net.netfilter.nf_conntrack_max=262144' >> package/base-files/files/etc/sys
 echo 'net.core.default_qdisc=fq' >> package/base-files/files/etc/sysctl.conf
 echo 'net.ipv4.tcp_congestion_control=bbr' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> package/base-files/files/etc/profile
-sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" include/image.mk
+sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g' include/image.mk
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language << 'EOF'
 #!/bin/sh
@@ -216,11 +206,9 @@ chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 # 7. 精简 .config（最终生产版 + 强制禁用 Docker）
 ##############################################################################
 touch .config
-# 清理冲突与无用
 sed -i '/luci-app-transmission/d;/transmission-daemon/d' .config
 sed -i '/luci-app-store/d;/luci-i18n-store/d' .config
 sed -i '/qemu-ga/d;/dockerd/d;/docker/d;/dockerman/d;/mihomo/d' .config
-# 强制禁用 Docker 全家桶
 echo "# CONFIG_PACKAGE_dockerd is not set" >> .config
 echo "# CONFIG_PACKAGE_docker is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-dockerman is not set" >> .config
@@ -228,22 +216,18 @@ echo "# CONFIG_PACKAGE_containerd is not set" >> .config
 echo "# CONFIG_PACKAGE_runc is not set" >> .config
 echo "# CONFIG_PACKAGE_tini is not set" >> .config
 echo "# CONFIG_PACKAGE_libnetwork is not set" >> .config
-# 中文
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
-# 版本信息
 COMPILE_DATE_SHORT="$(date +%y.%m.%d)"
 echo "CONFIG_IMAGEOPT=y" >> .config
 echo "CONFIG_VERSIONOPT=y" >> .config
 echo "CONFIG_VERSION_NUMBER=\"R${COMPILE_DATE_SHORT}\"" >> .config
 echo "CONFIG_VERSION_CODE=\"\"" >> .config
-# ---------- 目标平台 ----------
 echo "CONFIG_TARGET_x86=y" >> .config
 echo "CONFIG_TARGET_x86_64=y" >> .config
 echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
-# ---------- 网卡与存储驱动（N6000 + I226 + PVE） ----------
 echo "CONFIG_PACKAGE_kmod-igc=y" >> .config
 echo "CONFIG_PACKAGE_kmod-igb=y" >> .config
 echo "CONFIG_PACKAGE_kmod-e1000e=y" >> .config
@@ -258,17 +242,14 @@ echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-tproxy=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-socket=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-bridge=y" >> .config
-# PVE 半虚拟化驱动
 echo "CONFIG_PACKAGE_kmod-virtio-net=y" >> .config
 echo "CONFIG_PACKAGE_kmod-virtio-blk=y" >> .config
 echo "CONFIG_PACKAGE_kmod-virtio-scsi=y" >> .config
-# N6000 AES-NI 硬件密码学加速
 echo "CONFIG_PACKAGE_kmod-crypto-hw-aesni=y" >> .config
 echo "CONFIG_PACKAGE_kmod-crypto-xts=y" >> .config
 echo "CONFIG_PACKAGE_kmod-crypto-gcm=y" >> .config
 echo "CONFIG_PACKAGE_kmod-crypto-sha256=y" >> .config
 echo "CONFIG_PACKAGE_kmod-crypto-sha512=y" >> .config
-# 文件系统与 Diskman 完整依赖
 echo "CONFIG_PACKAGE_block-mount=y" >> .config
 echo "CONFIG_PACKAGE_e2fsprogs=y" >> .config
 echo "CONFIG_PACKAGE_blkid=y" >> .config
@@ -277,7 +258,6 @@ echo "CONFIG_PACKAGE_fdisk=y" >> .config
 echo "CONFIG_PACKAGE_parted=y" >> .config
 echo "CONFIG_PACKAGE_lsblk=y" >> .config
 echo "CONFIG_PACKAGE_smartmontools=y" >> .config
-# ---------- 网络基础 + 防火墙（强制保留） ----------
 echo "CONFIG_PACKAGE_dnsmasq-full=y" >> .config
 echo "CONFIG_PACKAGE_firewall4=y" >> .config
 echo "CONFIG_PACKAGE_nftables-json=y" >> .config
@@ -288,7 +268,6 @@ echo "CONFIG_PACKAGE_ca-bundle=y" >> .config
 echo "CONFIG_PACKAGE_ca-certificates=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y" >> .config
-# ---------- PassWall 1（完整依赖） ----------
 echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
@@ -308,18 +287,22 @@ echo "CONFIG_PACKAGE_ipt2socks=y" >> .config
 echo "CONFIG_PACKAGE_v2ray-geodata=y" >> .config
 echo "CONFIG_PACKAGE_geoview=y" >> .config
 echo "CONFIG_PACKAGE_tcping=y" >> .config
-# 彻底禁用 passwall2
 echo "# CONFIG_PACKAGE_luci-app-passwall2 is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn is not set" >> .config
+
 # ---------- dae + 完整 Daed Web 界面 ----------
 echo "CONFIG_PACKAGE_dae=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config                    # 轻度界面（保留）
+echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
-# ===== 修改处：启用完整 Daed Web 界面 =====
+
+# ===== 修改处：完整启用 Daed 及其全部依赖 =====
 echo "CONFIG_PACKAGE_luci-app-daed=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-daed-zh-cn=y" >> .config
+echo "CONFIG_PACKAGE_daed=y" >> .config
+echo "CONFIG_PACKAGE_daed-geoip=y" >> .config
+echo "CONFIG_PACKAGE_daed-geosite=y" >> .config
 # ===== 修改处结束 =====
-# ---------- 其他实用插件 ----------
+
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
@@ -337,7 +320,6 @@ echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> .config
-# ---------- 去除 Tailscale 及其关联组件 ----------
 echo "# CONFIG_PACKAGE_tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-tailscale-zh-cn is not set" >> .config
@@ -367,7 +349,6 @@ echo "# CONFIG_PACKAGE_ppp-mod-pppoe is not set" >> .config
 ##############################################################################
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount << 'EOF'
 #!/bin/sh
-# 注意：PVE 容器中设备名可能是 sda3 / vda3 / sdb3，请根据实际情况修改
 uci -q delete fstab.sda3
 uci set fstab.sda3="mount"
 uci set fstab.sda3.device="/dev/sda3"
@@ -387,7 +368,6 @@ cat > package/base-files/files/etc/uci-defaults/99-enable-services << 'EOF'
 uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
-# 禁止 PassWall 开机自启动
 uci -q set passwall.@global[0].enabled='0'
 uci commit passwall
 /etc/init.d/passwall disable || true
