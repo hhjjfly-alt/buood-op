@@ -2,7 +2,7 @@
 # diyyb1-part2.sh
 # 最终生产精简版（已修复语法错误 + smartdns 哈希 + 强制禁用 Docker + sing-box 固定稳定版）
 # 适配最新 OpenWrt + N6000/PVE + I226
-# ===== 完整 Daed Web 界面版（已修复语法错误 + daed 依赖）=====
+# ===== 干净版：只保留轻度 luci-app-dae，已移除完整 Daed Web 界面 =====
 set -e
 export GIT_TERMINAL_PROMPT=0
 clone_or_pull() {
@@ -31,7 +31,7 @@ get_latest_tag() {
         | sed -E 's/.*"([^"]+)".*/\1/')
     echo "$tag"
 }
-echo "=== 开始执行 diyyb1-part2.sh（完整 Daed Web 界面版） ==="
+echo "=== 开始执行 diyyb1-part2.sh（干净版：只保留轻度 luci-app-dae） ==="
 ##############################################################################
 # 1. 清理官方冲突包
 ##############################################################################
@@ -49,8 +49,8 @@ rm -rf package/passwall2
 
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-# dae（保留轻度 luci-app-dae）
-rm -rf package/dae package/luci-app-dae
+# dae（只保留轻度 luci-app-dae）
+rm -rf package/dae package/luci-app-dae package/luci-app-daed
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
 [ -d package/immortalwrt-packages/net/dae ] && mv package/immortalwrt-packages/net/dae package/dae
 rm -rf package/immortalwrt-packages
@@ -60,22 +60,6 @@ git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
     rm -rf package/luci-app-dae/dae 2>/dev/null || true
 }
 rm -rf package/immortalwrt-luci
-
-# ===== 完整 Daed Web 界面 =====
-rm -rf package/luci-app-daed package/daed
-clone_or_pull https://github.com/QiuSimons/luci-app-daed package/luci-app-daed
-# 备用拉取
-if [ ! -d package/luci-app-daed ] || [ ! -f package/luci-app-daed/Makefile ]; then
-    echo "主仓库拉取失败，尝试备用源..."
-    rm -rf package/luci-app-daed
-    git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci-tmp
-    if [ -d package/immortalwrt-luci-tmp/applications/luci-app-daed ]; then
-        mv package/immortalwrt-luci-tmp/applications/luci-app-daed package/luci-app-daed
-    fi
-    rm -rf package/immortalwrt-luci-tmp
-fi
-find package/luci-app-daed -type d -name "web" -exec rm -rf {} + 2>/dev/null || true
-# ===== 结束 =====
 
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
@@ -94,31 +78,6 @@ if [ -f package/dae/Makefile ]; then
 fi
 [ -f package/luci-app-dae/Makefile ] && sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
 
-# ===== 修改处：完整 Daed 路径/哈希修复 + 强化主包处理 =====
-if [ -f package/luci-app-daed/Makefile ]; then
-    sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-daed/Makefile
-    sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/luci-app-daed/Makefile 2>/dev/null || true
-    sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/luci-app-daed/Makefile 2>/dev/null || true
-fi
-
-if [ -d package/luci-app-daed/daed ]; then
-    find package/luci-app-daed/daed -name "Makefile" -exec sed -i \
-        -e 's/PKG_HASH:=.*/PKG_HASH:=skip/g' \
-        -e 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' \
-        -e 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' \
-        {} + 2>/dev/null || true
-
-    # 补充 node/host 依赖（解决前端 embed 问题）
-    for mk in package/luci-app-daed/daed/Makefile package/luci-app-daed/Makefile; do
-        [ -f "$mk" ] || continue
-        if ! grep -q 'node/host' "$mk" 2>/dev/null; then
-            sed -i '/PKG_BUILD_DEPENDS/s/$/ +node\/host/' "$mk" 2>/dev/null || \
-            sed -i '/include $(INCLUDE_DIR)\/package.mk/a PKG_BUILD_DEPENDS:=node/host' "$mk" 2>/dev/null || true
-        fi
-    done
-fi
-# ===== 修改处结束 =====
-
 if [ -f package/smartdns/Makefile ]; then
     sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile
     if ! grep -q 'DEPENDS.*zlib' package/smartdns/Makefile; then
@@ -130,7 +89,7 @@ fi
 ##############################################################################
 rm -rf tmp/
 ./scripts/feeds update -i
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/dae package/luci-app-dae package/luci-app-daed package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
+THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/dae package/luci-app-dae package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
 for dir in $THIRD_PARTY_DIRS; do
     [ -d "$dir" ] || continue
     find "$dir" -type f -name "Makefile" -exec sed -i -E \
@@ -192,9 +151,7 @@ echo 'net.netfilter.nf_conntrack_max=262144' >> package/base-files/files/etc/sys
 echo 'net.core.default_qdisc=fq' >> package/base-files/files/etc/sysctl.conf
 echo 'net.ipv4.tcp_congestion_control=bbr' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> package/base-files/files/etc/profile
-# ===== 修复语法错误的地方 =====
 sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" include/image.mk
-# ===== 修复结束 =====
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language << 'EOF'
 #!/bin/sh
@@ -292,18 +249,16 @@ echo "CONFIG_PACKAGE_tcping=y" >> .config
 echo "# CONFIG_PACKAGE_luci-app-passwall2 is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn is not set" >> .config
 
-# ---------- dae + 完整 Daed Web 界面 ----------
+# ---------- dae（只保留轻度界面） ----------
 echo "CONFIG_PACKAGE_dae=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
-
-# ===== 修改处：完整启用 Daed 及其全部依赖 =====
-echo "CONFIG_PACKAGE_luci-app-daed=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-daed-zh-cn=y" >> .config
-echo "CONFIG_PACKAGE_daed=y" >> .config
-echo "CONFIG_PACKAGE_daed-geoip=y" >> .config
-echo "CONFIG_PACKAGE_daed-geosite=y" >> .config
-# ===== 修改处结束 =====
+# 禁用完整 Daed
+echo "# CONFIG_PACKAGE_luci-app-daed is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-daed-zh-cn is not set" >> .config
+echo "# CONFIG_PACKAGE_daed is not set" >> .config
+echo "# CONFIG_PACKAGE_daed-geoip is not set" >> .config
+echo "# CONFIG_PACKAGE_daed-geosite is not set" >> .config
 
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
@@ -399,7 +354,7 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
         echo "CONFIG_NET_CLS_BPF=y"
     } >> "$conf"
 done
-echo "=== diyyb1-part2.sh 执行完成（完整 Daed Web 界面版） ==="
+echo "=== diyyb1-part2.sh 执行完成（干净版：只保留轻度 luci-app-dae） ==="
 echo "推荐后续命令："
 echo "  make defconfig"
 echo "  make download -j\$(nproc)"
