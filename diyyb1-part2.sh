@@ -2,7 +2,7 @@
 # diyyb1-part2.sh
 # 最终生产精简版（已修复语法错误 + smartdns 哈希 + 强制禁用 Docker + sing-box 固定稳定版）
 # 适配最新 OpenWrt + N6000/PVE + I226
-# ===== 完整 Daed Web 界面版（已修复 daed / daed-geoip / daed-geosite 依赖问题）=====
+# ===== 完整 Daed Web 界面版（已修复语法错误 + daed 依赖）=====
 set -e
 export GIT_TERMINAL_PROMPT=0
 clone_or_pull() {
@@ -192,7 +192,9 @@ echo 'net.netfilter.nf_conntrack_max=262144' >> package/base-files/files/etc/sys
 echo 'net.core.default_qdisc=fq' >> package/base-files/files/etc/sysctl.conf
 echo 'net.ipv4.tcp_congestion_control=bbr' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> package/base-files/files/etc/profile
-sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g' include/image.mk
+# ===== 修复语法错误的地方 =====
+sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" include/image.mk
+# ===== 修复结束 =====
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language << 'EOF'
 #!/bin/sh
