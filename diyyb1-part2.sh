@@ -1,6 +1,6 @@
 #!/bin/bash
 # diyyb1-part2.sh
-# 最终生产精简版（已修复 daed 依赖缺失 + 语法错误 + smartdns 哈希 + sing-box 版本固定）
+# 最终生产精简版（保留完整 Daed Web 界面，剔除冗余 dae，保留 eBPF/BTF 核心支撑）
 # 适配最新 OpenWrt + N6000/PVE + I226
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -34,7 +34,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（完整 Daed Web 界面版） ==="
+echo "=== 开始执行 diyyb1-part2.sh（完整 Daed Web 界面版 - 已剔除 dae） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包
@@ -54,19 +54,11 @@ rm -rf package/passwall2
 
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-# dae & daed 核心包提取（提取 net/dae 与 net/daed）
+# daed 核心包提取（仅提取 net/daed，彻底移除 dae）
 rm -rf package/dae package/daed package/luci-app-dae package/luci-app-daed
 git clone --depth=1 https://github.com/immortalwrt/packages package/immortalwrt-packages
-[ -d package/immortalwrt-packages/net/dae ] && mv package/immortalwrt-packages/net/dae package/dae
 [ -d package/immortalwrt-packages/net/daed ] && mv package/immortalwrt-packages/net/daed package/daed
 rm -rf package/immortalwrt-packages
-
-git clone --depth=1 https://github.com/immortalwrt/luci package/immortalwrt-luci
-[ -d package/immortalwrt-luci/applications/luci-app-dae ] && {
-    mv package/immortalwrt-luci/applications/luci-app-dae package/luci-app-dae
-    rm -rf package/luci-app-dae/dae 2>/dev/null || true
-}
-rm -rf package/immortalwrt-luci
 
 # ===== 完整 Daed Web 界面 =====
 clone_or_pull https://github.com/QiuSimons/luci-app-daed package/luci-app-daed
@@ -92,13 +84,6 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 ##############################################################################
 # 3. 路径与哈希修复
 ##############################################################################
-if [ -f package/dae/Makefile ]; then
-    sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/dae/Makefile
-    sed -i 's/PKG_HASH:=.*/PKG_HASH:=skip/g' package/dae/Makefile
-    sed -i 's/^PKG_MIRROR_HASH:=.*/PKG_MIRROR_HASH:=skip/g' package/dae/Makefile
-fi
-[ -f package/luci-app-dae/Makefile ] && sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-dae/Makefile
-
 # ===== daed 核心与 luci-app-daed 路径/哈希修复 =====
 if [ -f package/daed/Makefile ]; then
     sed -i 's|../../lang/golang/golang-package.mk|$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk|g' package/daed/Makefile
@@ -124,7 +109,7 @@ fi
 ##############################################################################
 rm -rf tmp/
 ./scripts/feeds update -i
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/dae package/daed package/luci-app-dae package/luci-app-daed package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
+THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/daed package/luci-app-daed package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
 for dir in $THIRD_PARTY_DIRS; do
     [ -d "$dir" ] || continue
     find "$dir" -type f -name "Makefile" -exec sed -i -E \
@@ -196,7 +181,7 @@ sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" includ
 
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language << 'EOF'
-#!/bin/sh
+#!/sh
 uci set luci.main.lang='zh_cn'
 uci commit luci
 rm -f /etc/uci-defaults/99-custom-language
@@ -205,13 +190,14 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 
 ##############################################################################
-# 7. 精简 .config（最终生产版 + 强制禁用 Docker）
+# 7. 精简 .config（最终生产版 + 强制禁用 Docker + 去除 dae）
 ##############################################################################
 touch .config
 sed -i '/luci-app-transmission/d;/transmission-daemon/d' .config
 sed -i '/luci-app-store/d;/luci-i18n-store/d' .config
 sed -i '/qemu-ga/d;/dockerd/d;/docker/d;/dockerman/d;/mihomo/d' .config
 sed -i '/CONFIG_PACKAGE_dnsmasq/d' .config
+sed -i '/CONFIG_PACKAGE_dae/d;/luci-app-dae/d;/luci-i18n-dae/d' .config
 
 echo "# CONFIG_PACKAGE_dnsmasq is not set" >> .config
 echo "# CONFIG_PACKAGE_dockerd is not set" >> .config
@@ -296,10 +282,10 @@ echo "CONFIG_PACKAGE_tcping=y" >> .config
 echo "# CONFIG_PACKAGE_luci-app-passwall2 is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn is not set" >> .config
 
-# ---------- dae + 完整 Daed Web 界面 ----------
-echo "CONFIG_PACKAGE_dae=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-dae=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-dae-zh-cn=y" >> .config
+# ---------- 禁用冗余 dae，启用完整 Daed Web 界面 ----------
+echo "# CONFIG_PACKAGE_dae is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-app-dae is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-dae-zh-cn is not set" >> .config
 echo "CONFIG_PACKAGE_daed=y" >> .config
 echo "CONFIG_PACKAGE_daed-geoip=y" >> .config
 echo "CONFIG_PACKAGE_daed-geosite=y" >> .config
@@ -382,7 +368,7 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
 
 ##############################################################################
-# 9. 内核 BPF/BTF（dae 必需，防重复追加）
+# 9. 内核 BPF/BTF（daed 强制依赖项，防重复追加）
 ##############################################################################
 for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     [ -f "$conf" ] || continue
