@@ -34,7 +34,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（全量加固生产版） ==="
+echo "=== 开始执行 diyyb1-part2.sh（全量加固生产最终版） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包与历史废弃包
@@ -92,7 +92,7 @@ clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-s
 ##############################################################################
 # 3. 依赖、路径与哈希修复
 ##############################################################################
-# SmartDNS 依赖修复（放宽缩进规则）
+# SmartDNS 依赖修复
 if [ -f package/smartdns/Makefile ]; then
     sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile 2>/dev/null || true
     if ! grep -q 'DEPENDS.*zlib' package/smartdns/Makefile; then
@@ -235,7 +235,7 @@ echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
 
-# PVE 专属 Agent 支持（确保宿主机正常获取 IP 并优雅下发 ACPI 关机信号）
+# PVE 专属 Agent 支持
 echo "CONFIG_PACKAGE_qemu-ga=y" >> .config
 
 # 硬件网卡驱动（I226 及虚拟化网卡）
@@ -328,7 +328,7 @@ echo "CONFIG_PACKAGE_luci-i18n-daede-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_daed=y" >> .config
 echo "CONFIG_PACKAGE_dae=y" >> .config
 
-# OpenClash 完整依赖链（消除 Ruby 运行时报错与 LuCI 渲染异常）
+# OpenClash 完整依赖链
 echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_luci-compat=y" >> .config
@@ -387,7 +387,6 @@ if [ -b "/dev/sda3" ]; then
 elif [ -b "/dev/vda3" ]; then
     TARGET_DEV="/dev/vda3"
 fi
-
 if [ -n "$TARGET_DEV" ]; then
     uci -q delete fstab.data
     uci set fstab.data="mount"
@@ -434,30 +433,36 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
 
 ##############################################################################
-# 9. 内核 BPF/BTF 配置多层注入（幂等性操作，防重复定义与误伤）
+# 9. 内核 BPF/BTF 配置多层注入（完全幂等，统一逻辑）
 ##############################################################################
 set_kconfig() {
     local opt="$1" file="$2"
+    # 删除“未启用”声明
     sed -i "/# ${opt} is not set/d" "$file"
+    # 已存在 =y 则跳过，否则追加
     grep -q "^${opt}=y" "$file" || echo "${opt}=y" >> "$file"
 }
 
 for conf in target/linux/generic/config-* target/linux/x86/config-* target/linux/x86/64/config-*; do
     [ -f "$conf" ] || continue
-    set_kconfig "CONFIG_BPF" "$conf"
-    set_kconfig "CONFIG_BPF_SYSCALL" "$conf"
-    set_kconfig "CONFIG_BPF_JIT" "$conf"
-    set_kconfig "CONFIG_HAVE_EBPF_JIT" "$conf"
-    set_kconfig "CONFIG_BPF_EVENTS" "$conf"
-    set_kconfig "CONFIG_CGROUP_BPF" "$conf"
-    set_kconfig "CONFIG_DEBUG_INFO" "$conf"
-    set_kconfig "CONFIG_DEBUG_INFO_BTF" "$conf"
-    set_kconfig "CONFIG_XDP_SOCKETS" "$conf"
-    set_kconfig "CONFIG_NET_SCH_BPF" "$conf"
-    set_kconfig "CONFIG_NET_ACT_BPF" "$conf"
-    set_kconfig "CONFIG_NET_CLS_BPF" "$conf"
+
+    set_kconfig "CONFIG_BPF"               "$conf"
+    set_kconfig "CONFIG_BPF_SYSCALL"       "$conf"
+    set_kconfig "CONFIG_BPF_JIT"           "$conf"
+    set_kconfig "CONFIG_HAVE_EBPF_JIT"     "$conf"
+    set_kconfig "CONFIG_BPF_EVENTS"        "$conf"
+    set_kconfig "CONFIG_CGROUP_BPF"        "$conf"
+    set_kconfig "CONFIG_DEBUG_INFO"        "$conf"
+    set_kconfig "CONFIG_DEBUG_INFO_BTF"    "$conf"
+    set_kconfig "CONFIG_XDP_SOCKETS"       "$conf"
+    set_kconfig "CONFIG_NET_SCH_BPF"       "$conf"
+    set_kconfig "CONFIG_NET_ACT_BPF"       "$conf"
+    set_kconfig "CONFIG_NET_CLS_BPF"       "$conf"
+
+    # CONFIG_DEBUG_INFO_REDUCED 特殊处理（必须保持“未启用”状态）
     sed -i '/CONFIG_DEBUG_INFO_REDUCED/d' "$conf"
-    echo "# CONFIG_DEBUG_INFO_REDUCED is not set" >> "$conf"
+    grep -q '^# CONFIG_DEBUG_INFO_REDUCED is not set' "$conf" || \
+        echo "# CONFIG_DEBUG_INFO_REDUCED is not set" >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（全量加固生产版） ==="
+echo "=== diyyb1-part2.sh 执行完成（全量加固生产最终版） ==="
