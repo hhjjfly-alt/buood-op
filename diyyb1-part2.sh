@@ -1,6 +1,6 @@
 #!/bin/bash
 # diyyb1-part2.sh
-# 最终生产精简版（保留完整 Daed Web 界面，剔除冗余 dae，保留 eBPF/BTF 核心支撑）
+# 最终生产精简版（保留完整 Daed Web 界面，剔除冗余 dae，保留 eBPF/BTF 核心支撑，增加 OpenClash 支持）
 # 适配最新 OpenWrt + N6000/PVE + I226
 set -e
 export GIT_TERMINAL_PROMPT=0
@@ -34,13 +34,14 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（完整 Daed Web 界面版 - 已剔除 dae） ==="
+echo "=== 开始执行 diyyb1-part2.sh（完整 Daed Web 界面版 + OpenClash - 已剔除 dae） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包
 ##############################################################################
 rm -rf feeds/packages/net/{chinadns-ng,dns2socks,geoview,hysteria,ipt2socks,microsocks,naiveproxy,shadow-tls,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,sing-box,tcping,trojan-plus,tuic-client,v2ray-core,v2ray-geodata,v2ray-plugin,xray-core,xray-plugin,smartdns,dae,daed} 2>/dev/null || true
-rm -rf feeds/luci/applications/{luci-app-passwall,luci-app-smartdns,luci-app-dae,luci-app-daed} 2>/dev/null || true
+# 【改动处：添加清理 luci-app-openclash，防 feeds 冲突】
+rm -rf feeds/luci/applications/{luci-app-passwall,luci-app-smartdns,luci-app-dae,luci-app-daed,luci-app-openclash} 2>/dev/null || true
 
 ##############################################################################
 # 2. 拉取必要第三方源（无 Docker）
@@ -74,6 +75,9 @@ if [ ! -d package/luci-app-daed ] || [ ! -f package/luci-app-daed/Makefile ]; th
 fi
 find package/luci-app-daed -type d -name "web" -exec rm -rf {} + 2>/dev/null || true
 # ===== 结束 =====
+
+# 【改动处：拉取 OpenClash 官方源码仓库】
+clone_or_pull https://github.com/vernesong/OpenClash.git package/luci-app-openclash
 
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
@@ -109,7 +113,8 @@ fi
 ##############################################################################
 rm -rf tmp/
 ./scripts/feeds update -i
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/daed package/luci-app-daed package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
+# 【改动处：在 THIRD_PARTY_DIRS 中加入 package/luci-app-openclash】
+THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/daed package/luci-app-daed package/luci-app-openclash package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
 for dir in $THIRD_PARTY_DIRS; do
     [ -d "$dir" ] || continue
     find "$dir" -type f -name "Makefile" -exec sed -i -E \
@@ -195,7 +200,8 @@ chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 touch .config
 sed -i '/luci-app-transmission/d;/transmission-daemon/d' .config
 sed -i '/luci-app-store/d;/luci-i18n-store/d' .config
-sed -i '/qemu-ga/d;/dockerd/d;/docker/d;/dockerman/d;/mihomo/d' .config
+# 【改动处：原脚本为 sed -i '/qemu-ga/d;/dockerd/d;/docker/d;/dockerman/d;/mihomo/d' .config，这里剔除 /mihomo/d 以免影响 OpenClash 的 Meta 内核】
+sed -i '/qemu-ga/d;/dockerd/d;/docker/d;/dockerman/d' .config
 sed -i '/CONFIG_PACKAGE_dnsmasq/d' .config
 sed -i '/CONFIG_PACKAGE_dae/d;/luci-app-dae/d;/luci-i18n-dae/d' .config
 
@@ -292,6 +298,17 @@ echo "CONFIG_PACKAGE_daed-geosite=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-daed=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-daed-zh-cn=y" >> .config
 
+# 【改动处：启用 OpenClash 及其运行所必需的核心依赖】
+echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y" >> .config
+echo "CONFIG_PACKAGE_coreutils=y" >> .config
+echo "CONFIG_PACKAGE_coreutils-nohup=y" >> .config
+echo "CONFIG_PACKAGE_bash=y" >> .config
+echo "CONFIG_PACKAGE_curl=y" >> .config
+echo "CONFIG_PACKAGE_tar=y" >> .config
+echo "CONFIG_PACKAGE_unzip=y" >> .config
+echo "CONFIG_PACKAGE_kmod-inet-diag=y" >> .config
+
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
@@ -362,6 +379,10 @@ uci commit smartdns
 uci -q set passwall.@global[0].enabled='0'
 uci commit passwall
 /etc/init.d/passwall disable || true
+# 【改动处：默认禁用 openclash 自启，防止开机与 passwall/smartdns 端口冲突】
+uci -q set openclash.config.enable='0'
+uci commit openclash || true
+/etc/init.d/openclash disable || true
 rm -f /etc/uci-defaults/99-enable-services
 exit 0
 EOF
@@ -390,4 +411,5 @@ for conf in target/linux/generic/config-* target/linux/x86/config-*; do
     } >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（完整 Daed Web 界面版） ==="
+# 【改动处：结束提示更新】
+echo "=== diyyb1-part2.sh 执行完成（完整 Daed Web 界面 + OpenClash 版） ==="
