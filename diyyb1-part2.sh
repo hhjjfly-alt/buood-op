@@ -1,7 +1,7 @@
 #!/bin/bash
 # diyyb1-part2.sh
 # 最终生产全量加固稳定版（PassWall + openwrt-daede + OpenClash + 完整 eBPF/BTF 链）
-# 适配最新 OpenWrt + N6000/PVE 虚拟化 + I226 网卡
+# 适配最新 OpenWrt + N6000/PVE 虚拟化 + I226 网卡 (适配 Jasper Lake 兼容架构内核)
 set -e
 export GIT_TERMINAL_PROMPT=0
 
@@ -34,7 +34,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（全量加固生产最终版） ==="
+echo "=== 开始执行 diyyb1-part2.sh（适配 N6000 兼容内核版） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包与历史废弃包
@@ -54,7 +54,7 @@ rm -rf package/passwall-packages/shadowsocksr-libev package/passwall2 2>/dev/nul
 # Lucky
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
 
-# openwrt-daede 统一套件（OpenWrt 递归扫描 package/ 目录，无需创建多余软链接）
+# openwrt-daede 统一套件
 clone_or_pull https://github.com/kenzok8/openwrt-daede.git package/openwrt-daede
 
 # OpenClash 源码精准提取
@@ -65,17 +65,17 @@ if [ -d package/openclash-tmp/luci-app-openclash ]; then
 fi
 rm -rf package/openclash-tmp
 
-# 预置 OpenClash Mihomo/Meta 核心（规避初次刷机网络死锁）
+# ===== 核心改动：预置专为 N6000 编译的 Compatible 兼容架构内核 =====
 mkdir -p package/luci-app-openclash/root/etc/openclash/core
-CLASH_META_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-amd64.tar.gz"
-echo "正在预置 OpenClash Mihomo 核心二进制..."
+CLASH_META_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-amd64-compatible.tar.gz"
+echo "正在预置 OpenClash Mihomo 兼容版核心二进制（适配 N6000/无 AVX 平台）..."
 if curl -sL --connect-timeout 15 --max-time 90 "$CLASH_META_URL" -o /tmp/clash_meta.tar.gz; then
     if tar -zxf /tmp/clash_meta.tar.gz -C /tmp/ 2>/dev/null && [ -f /tmp/clash ]; then
         mv /tmp/clash package/luci-app-openclash/root/etc/openclash/core/clash_meta
         chmod +x package/luci-app-openclash/root/etc/openclash/core/clash_meta
-        echo "OpenClash Mihomo 核心预置成功！"
+        echo "OpenClash 兼容版核心预置成功！"
     else
-        echo "警告：OpenClash 核心解压失败，运行时需手动通过网络下载"
+        echo "警告：OpenClash 兼容版核心解压失败，运行时需手动通过网络下载"
     fi
     rm -f /tmp/clash_meta.tar.gz /tmp/clash 2>/dev/null || true
 else
@@ -238,7 +238,7 @@ echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
 # PVE 专属 Agent 支持
 echo "CONFIG_PACKAGE_qemu-ga=y" >> .config
 
-# 硬件网卡驱动（I226 及虚拟化网卡）
+# 硬件网卡驱动
 echo "CONFIG_PACKAGE_kmod-igc=y" >> .config
 echo "CONFIG_PACKAGE_kmod-igb=y" >> .config
 echo "CONFIG_PACKAGE_kmod-e1000e=y" >> .config
@@ -263,7 +263,7 @@ echo "CONFIG_PACKAGE_parted=y" >> .config
 echo "CONFIG_PACKAGE_lsblk=y" >> .config
 echo "CONFIG_PACKAGE_smartmontools=y" >> .config
 
-# 完整 eBPF/BTF 编译顶层工具链支持（daede 核心刚需）
+# 完整 eBPF/BTF 编译顶层工具链支持
 echo "CONFIG_DEVEL=y" >> .config
 echo "CONFIG_BPF_TOOLCHAIN_HOST=y" >> .config
 echo "CONFIG_KERNEL_DEBUG_INFO=y" >> .config
@@ -301,7 +301,7 @@ echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> .config
 
-# PassWall 及其全功能协议核心
+# PassWall 全功能组件
 echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
@@ -322,7 +322,7 @@ echo "CONFIG_PACKAGE_v2ray-geodata=y" >> .config
 echo "CONFIG_PACKAGE_geoview=y" >> .config
 echo "CONFIG_PACKAGE_tcping=y" >> .config
 
-# openwrt-daede 统一套件（同时编译 dae 与 daed 核心）
+# openwrt-daede 统一套件
 echo "CONFIG_PACKAGE_luci-app-daede=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-daede-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_daed=y" >> .config
@@ -341,7 +341,7 @@ echo "CONFIG_PACKAGE_curl=y" >> .config
 echo "CONFIG_PACKAGE_tar=y" >> .config
 echo "CONFIG_PACKAGE_unzip=y" >> .config
 
-# 扩展工具与常用服务
+# 扩展工具
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
@@ -359,7 +359,7 @@ echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 
-# 精简无线与无用网络协议
+# 禁用冗余无线协议
 echo "# CONFIG_PACKAGE_tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
@@ -376,17 +376,17 @@ echo "# CONFIG_PACKAGE_ppp is not set" >> .config
 echo "# CONFIG_PACKAGE_ppp-mod-pppoe is not set" >> .config
 
 ##############################################################################
-# 8. 磁盘挂载与多代理互斥自启管理（防止开机死锁）
+# 8. 磁盘挂载与多代理互斥自启管理
 ##############################################################################
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount << 'EOF'
 #!/bin/sh
-# 自适应探测 PVE 环境下 VirtIO Block (/dev/vda3) 或 SCSI/SATA (/dev/sda3)
 TARGET_DEV=""
 if [ -b "/dev/sda3" ]; then
     TARGET_DEV="/dev/sda3"
 elif [ -b "/dev/vda3" ]; then
     TARGET_DEV="/dev/vda3"
 fi
+
 if [ -n "$TARGET_DEV" ]; then
     uci -q delete fstab.data
     uci set fstab.data="mount"
@@ -411,7 +411,7 @@ uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
 
-# 严格互斥：默认全部禁用各代理自启，防止端口、FWMARK 与 TProxy 规则死锁
+# 严格互斥：默认全部禁用代理自启
 uci -q set passwall.@global[0].enabled='0'
 uci commit passwall
 /etc/init.d/passwall disable || true
@@ -420,7 +420,6 @@ uci -q set openclash.config.enable='0'
 uci commit openclash || true
 /etc/init.d/openclash disable || true
 
-# daede 兼容禁用
 /etc/init.d/daed disable 2>/dev/null || true
 /etc/init.d/dae  disable 2>/dev/null || true
 uci -q set daede.@global[0].enabled='0' 2>/dev/null || true
@@ -433,36 +432,30 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
 
 ##############################################################################
-# 9. 内核 BPF/BTF 配置多层注入（完全幂等，统一逻辑）
+# 9. 内核 BPF/BTF 配置多层注入（幂等性操作）
 ##############################################################################
 set_kconfig() {
     local opt="$1" file="$2"
-    # 删除“未启用”声明
     sed -i "/# ${opt} is not set/d" "$file"
-    # 已存在 =y 则跳过，否则追加
     grep -q "^${opt}=y" "$file" || echo "${opt}=y" >> "$file"
 }
 
 for conf in target/linux/generic/config-* target/linux/x86/config-* target/linux/x86/64/config-*; do
     [ -f "$conf" ] || continue
-
-    set_kconfig "CONFIG_BPF"               "$conf"
-    set_kconfig "CONFIG_BPF_SYSCALL"       "$conf"
-    set_kconfig "CONFIG_BPF_JIT"           "$conf"
-    set_kconfig "CONFIG_HAVE_EBPF_JIT"     "$conf"
-    set_kconfig "CONFIG_BPF_EVENTS"        "$conf"
-    set_kconfig "CONFIG_CGROUP_BPF"        "$conf"
-    set_kconfig "CONFIG_DEBUG_INFO"        "$conf"
-    set_kconfig "CONFIG_DEBUG_INFO_BTF"    "$conf"
-    set_kconfig "CONFIG_XDP_SOCKETS"       "$conf"
-    set_kconfig "CONFIG_NET_SCH_BPF"       "$conf"
-    set_kconfig "CONFIG_NET_ACT_BPF"       "$conf"
-    set_kconfig "CONFIG_NET_CLS_BPF"       "$conf"
-
-    # CONFIG_DEBUG_INFO_REDUCED 特殊处理（必须保持“未启用”状态）
+    set_kconfig "CONFIG_BPF" "$conf"
+    set_kconfig "CONFIG_BPF_SYSCALL" "$conf"
+    set_kconfig "CONFIG_BPF_JIT" "$conf"
+    set_kconfig "CONFIG_HAVE_EBPF_JIT" "$conf"
+    set_kconfig "CONFIG_BPF_EVENTS" "$conf"
+    set_kconfig "CONFIG_CGROUP_BPF" "$conf"
+    set_kconfig "CONFIG_DEBUG_INFO" "$conf"
+    set_kconfig "CONFIG_DEBUG_INFO_BTF" "$conf"
+    set_kconfig "CONFIG_XDP_SOCKETS" "$conf"
+    set_kconfig "CONFIG_NET_SCH_BPF" "$conf"
+    set_kconfig "CONFIG_NET_ACT_BPF" "$conf"
+    set_kconfig "CONFIG_NET_CLS_BPF" "$conf"
     sed -i '/CONFIG_DEBUG_INFO_REDUCED/d' "$conf"
-    grep -q '^# CONFIG_DEBUG_INFO_REDUCED is not set' "$conf" || \
-        echo "# CONFIG_DEBUG_INFO_REDUCED is not set" >> "$conf"
+    echo "# CONFIG_DEBUG_INFO_REDUCED is not set" >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（全量加固生产最终版） ==="
+echo "=== diyyb1-part2.sh 执行完成（已适配 N6000 兼容架构） ==="
