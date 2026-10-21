@@ -50,7 +50,15 @@ jobs:
             libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano \
             ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools \
             qemu-utils scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl vim \
-            xmlto xxd zlib1g-dev python3-setuptools scdoc clang llvm dwarves golang-go
+            xmlto xxd zlib1g-dev python3-setuptools scdoc dwarves golang-go \
+            clang-15 llvm-15 lld-15
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100
+          sudo ln -sf /usr/bin/clang-15 /usr/bin/clang
+          sudo ln -sf /usr/bin/clang++-15 /usr/bin/clang++
+          sudo ln -sf /usr/bin/llvm-strip-15 /usr/bin/llvm-strip
+          sudo ln -sf /usr/bin/llvm-objcopy-15 /usr/bin/llvm-objcopy
+          clang --version
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
