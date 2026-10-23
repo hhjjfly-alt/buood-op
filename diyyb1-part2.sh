@@ -280,6 +280,8 @@ echo "CONFIG_PACKAGE_kmod-veth=y" >> .config
 
 # 核心路由转发环境
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+# [修复标注] 补充 PassWall 必备透明代理/NAT 关键内核依赖，解决无法启动的根本原因
+echo "CONFIG_PACKAGE_kmod-nft-nat=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-tproxy=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-socket=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-bridge=y" >> .config
@@ -314,6 +316,9 @@ echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Go=y" >> .config
 echo "CONFIG_PACKAGE_trojan-go=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
 echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
+# [修复标注] 补充 Shadowsocks-Rust 客户端支持，避免 SS 节点因找不到执行文件导致 PassWall 崩溃
+echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust=y" >> .config
+echo "CONFIG_PACKAGE_shadowsocks-rust=y" >> .config
 echo "CONFIG_PACKAGE_chinadns-ng=y" >> .config
 echo "CONFIG_PACKAGE_dns2socks=y" >> .config
 echo "CONFIG_PACKAGE_microsocks=y" >> .config
@@ -411,9 +416,11 @@ uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
 
-# 严格互斥：默认全部禁用代理自启
-uci -q set passwall.@global[0].enabled='0'
-uci commit passwall
+# [修复标注] 安全停用 PassWall 自启，防止配置文件不存在时产生脏写入导致配置结构损坏
+if [ -f "/etc/config/passwall" ]; then
+    uci -q set passwall.@global[0].enabled='0' 2>/dev/null || true
+    uci commit passwall 2>/dev/null || true
+fi
 /etc/init.d/passwall disable || true
 
 uci -q set openclash.config.enable='0'
