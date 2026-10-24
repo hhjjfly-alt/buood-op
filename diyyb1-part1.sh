@@ -1,14 +1,16 @@
 #!/bin/bash
 # diyyb1-part1.sh
+# 仅预留扩展位。zerotier 使用 OpenWrt 官方 feeds，不再引入 istore 旧包。
+set -e
 
-add_feed() {
-    local name=$1 url=$2
-    if ! grep -q "^src-git $name " feeds.conf.default; then
-        echo "src-git $name $url" >> feeds.conf.default
-    fi
-}
+# 若以后需要自定义 feed，按下面格式追加：
+# add_feed() {
+#     local name=$1 url=$2
+#     if ! grep -q "^src-git $name " feeds.conf.default; then
+#         echo "src-git $name $url" >> feeds.conf.default
+#     fi
+# }
+# add_feed example 'https://github.com/example/repo;main'
 
-# 仅保留核心源，去除会导致 grep target pattern 错误的 smartdns_luci
-# 回归官方源，依靠 part2 的终极 sed 脚本进行降维修复
-add_feed istore 'https://github.com/linkease/istore;main'
-add_feed istore_packages 'https://github.com/linkease/istore-packages;main'
+echo "=== diyyb1-part1.sh：无额外 feed（使用官方 zerotier） ==="
+exit 0
