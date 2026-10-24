@@ -1,7 +1,8 @@
 #!/bin/bash
 # diyyb1-part2.sh
-# 最终生产全量加固稳定版（PassWall + openwrt-daede + OpenClash + 完整 eBPF/BTF 链）
-# 适配最新 OpenWrt + N6000/PVE 虚拟化 + I226 网卡 (适配 Jasper Lake 兼容架构内核)
+# 生产加固版（PassWall + openwrt-daede + OpenClash + eBPF/BTF）
+# 适配最新 OpenWrt + N6000/PVE + I226（Jasper Lake 兼容内核）
+# 已去掉：trojan-go/trojan-plus、强制 dns2socks/ipt2socks、istore 依赖、重复全量 feeds update
 set -e
 export GIT_TERMINAL_PROMPT=0
 
@@ -34,7 +35,7 @@ get_latest_tag() {
     echo "$tag"
 }
 
-echo "=== 开始执行 diyyb1-part2.sh（适配 N6000 兼容内核版） ==="
+echo "=== 开始执行 diyyb1-part2.sh（N6000 兼容内核版） ==="
 
 ##############################################################################
 # 1. 清理官方冲突包与历史废弃包
@@ -44,20 +45,16 @@ rm -rf feeds/luci/applications/{luci-app-passwall,luci-app-smartdns,luci-app-dae
 rm -rf package/dae package/daed package/luci-app-dae package/luci-app-daed package/luci-app-daede package/openwrt-daede package/luci-app-openclash 2>/dev/null || true
 
 ##############################################################################
-# 2. 拉取高质量第三方源
+# 2. 拉取第三方源
 ##############################################################################
-# PassWall 源码
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/passwall-packages
 clone_or_pull https://github.com/Openwrt-Passwall/openwrt-passwall.git package/passwall-luci
+# 去掉 SSR；trojan 系不在 .config 启用（见第 7 节）
 rm -rf package/passwall-packages/shadowsocksr-libev package/passwall2 2>/dev/null || true
 
-# Lucky
 clone_or_pull https://github.com/gdy666/luci-app-lucky.git package/lucky
-
-# openwrt-daede 统一套件
 clone_or_pull https://github.com/kenzok8/openwrt-daede.git package/openwrt-daede
 
-# OpenClash 源码精准提取
 rm -rf package/luci-app-openclash package/openclash-tmp
 git clone --depth=1 https://github.com/vernesong/OpenClash.git package/openclash-tmp
 if [ -d package/openclash-tmp/luci-app-openclash ]; then
@@ -65,24 +62,29 @@ if [ -d package/openclash-tmp/luci-app-openclash ]; then
 fi
 rm -rf package/openclash-tmp
 
-# ===== 核心改动：预置专为 N6000 编译的 Compatible 兼容架构内核 =====
+# N6000：预置无 AVX 的 Mihomo compatible 核心
 mkdir -p package/luci-app-openclash/root/etc/openclash/core
 CLASH_META_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-amd64-compatible.tar.gz"
-echo "正在预置 OpenClash Mihomo 兼容版核心二进制（适配 N6000/无 AVX 平台）..."
+echo "正在预置 OpenClash Mihomo 兼容版核心..."
 if curl -sL --connect-timeout 15 --max-time 90 "$CLASH_META_URL" -o /tmp/clash_meta.tar.gz; then
     if tar -zxf /tmp/clash_meta.tar.gz -C /tmp/ 2>/dev/null && [ -f /tmp/clash ]; then
-        mv /tmp/clash package/luci-app-openclash/root/etc/openclash/core/clash_meta
-        chmod +x package/luci-app-openclash/root/etc/openclash/core/clash_meta
-        echo "OpenClash 兼容版核心预置成功！"
+        # 简单 ELF 校验
+        if head -c 4 /tmp/clash | grep -qa $'\x7fELF'; then
+            mv /tmp/clash package/luci-app-openclash/root/etc/openclash/core/clash_meta
+            chmod +x package/luci-app-openclash/root/etc/openclash/core/clash_meta
+            echo "OpenClash 兼容版核心预置成功"
+        else
+            echo "警告：核心非 ELF，跳过预置"
+            rm -f /tmp/clash
+        fi
     else
-        echo "警告：OpenClash 兼容版核心解压失败，运行时需手动通过网络下载"
+        echo "警告：兼容版核心解压失败"
     fi
     rm -f /tmp/clash_meta.tar.gz /tmp/clash 2>/dev/null || true
 else
-    echo "警告：OpenClash 核心下载超时，跳过预置"
+    echo "警告：OpenClash 核心下载失败，跳过预置"
 fi
 
-# 常用组件源
 clone_or_pull https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 clone_or_pull https://github.com/sirpdboy/luci-app-ddns-go package/ddns-go
 clone_or_pull https://github.com/lisaac/luci-app-diskman.git package/luci-app-diskman
@@ -90,9 +92,8 @@ clone_or_pull https://github.com/pymumu/openwrt-smartdns.git package/smartdns ma
 clone_or_pull https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns master
 
 ##############################################################################
-# 3. 依赖、路径与哈希修复
+# 3. 依赖与路径修复（定点，避免全局暴力 sed）
 ##############################################################################
-# SmartDNS 依赖修复
 if [ -f package/smartdns/Makefile ]; then
     sed -i 's|../../lang/rust/rust-package.mk|$(TOPDIR)/feeds/packages/lang/rust/rust-package.mk|g' package/smartdns/Makefile 2>/dev/null || true
     if ! grep -q 'DEPENDS.*zlib' package/smartdns/Makefile; then
@@ -100,97 +101,62 @@ if [ -f package/smartdns/Makefile ]; then
     fi
 fi
 
-# OpenClash 编译与 APK 打包规避修复
 if [ -f package/luci-app-openclash/Makefile ]; then
     sed -i 's|../../luci.mk|$(TOPDIR)/feeds/luci/luci.mk|g' package/luci-app-openclash/Makefile 2>/dev/null || true
     sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' package/luci-app-openclash/Makefile
 fi
 
 ##############################################################################
-# 4. Feeds 更新 + APK 包兼容性清洗
+# 4. 轻量注册第三方包（YAML 已 feeds update/install，此处不再全量 update -a）
 ##############################################################################
 rm -rf tmp/
-./scripts/feeds update -i
-
-THIRD_PARTY_DIRS="package/passwall-packages package/passwall-luci package/lucky package/openwrt-daede package/luci-app-openclash package/v2ray-geodata package/ddns-go package/luci-app-diskman package/smartdns package/luci-app-smartdns feeds/istore_packages"
-for dir in $THIRD_PARTY_DIRS; do
-    [ -d "$dir" ] || continue
-    find "$dir" -type f -name "Makefile" -exec sed -i -E \
-        -e 's/\([<=>]+[^)]+\)//g' \
-        -e 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*)[vV]([0-9])/\1\2/g' \
-        -e 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9]+(\.[0-9]+)*)[^0-9.].*/\1/g' \
-        -e 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*)[a-zA-Z].*/\11/g' \
-        -e 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=[[:space:]]*[0-9]+).*/\1/g' \
-        -e 's/^([[:space:]]*PKG_RELEASE[[:space:]]*:?=)[[:space:]]*$/\11/g' \
-        {} + || true
-done
-
-# luci-app-zerotier 强制兼容 apk
-ZT_MK="feeds/istore_packages/luci-app-zerotier/Makefile"
-if [ -f "$ZT_MK" ]; then
-    sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=1.3.0/' "$ZT_MK"
-    sed -i 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' "$ZT_MK"
-    grep -q '^PKG_RELEASE:=' "$ZT_MK" || sed -i '/^PKG_VERSION:=/a PKG_RELEASE:=1' "$ZT_MK"
-fi
-
-./scripts/feeds install -a
-./scripts/feeds install -p istore_packages luci-app-zerotier 2>/dev/null || true
+# 仅安装/刷新依赖索引，避免重复拉全网 feeds
+./scripts/feeds install -a 2>/dev/null || true
 
 ##############################################################################
-# 5. 动态更新版本 + 跳过哈希
+# 5. 动态版本 + 跳过哈希（均带保底，防 API 限流）
 ##############################################################################
-# Sing-Box 最新稳定版动态抓取（保底 1.14.3）
 SING_BOX_LATEST=$(get_latest_tag "SagerNet/sing-box")
 SING_BOX_LATEST=${SING_BOX_LATEST#v}
 [ -z "$SING_BOX_LATEST" ] && SING_BOX_LATEST="1.14.3"
 if [ -f package/passwall-packages/sing-box/Makefile ]; then
-    echo "动态设定 sing-box 稳定版为: $SING_BOX_LATEST"
+    echo "sing-box => $SING_BOX_LATEST"
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SING_BOX_LATEST/" package/passwall-packages/sing-box/Makefile
     sed -i '/PKG_HASH/d;/PKG_MIRROR_HASH/d' package/passwall-packages/sing-box/Makefile
     sed -i "/^PKG_VERSION:=/a PKG_HASH:=skip\nPKG_MIRROR_HASH:=skip" package/passwall-packages/sing-box/Makefile
 fi
 
-# DDNS-GO 动态标签
 DDNS_GO_LATEST=$(get_latest_tag "jeessy2/ddns-go")
 DDNS_GO_LATEST=${DDNS_GO_LATEST#v}
-if [ -n "$DDNS_GO_LATEST" ] && [ -f package/ddns-go/ddns-go/Makefile ]; then
+[ -z "$DDNS_GO_LATEST" ] && DDNS_GO_LATEST="6.9.0"
+if [ -f package/ddns-go/ddns-go/Makefile ]; then
+    echo "ddns-go => $DDNS_GO_LATEST"
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$DDNS_GO_LATEST/" package/ddns-go/ddns-go/Makefile
     sed -i "s/^PKG_HASH:=.*/PKG_HASH:=skip/" package/ddns-go/ddns-go/Makefile
 fi
 
-# SmartDNS 动态标签
 SMARTDNS_TAG=$(get_latest_tag "pymumu/smartdns")
 SMARTDNS_LATEST=$(echo "$SMARTDNS_TAG" | sed 's/^Release//')
 [ -z "$SMARTDNS_LATEST" ] && SMARTDNS_LATEST="48.4" && SMARTDNS_TAG="Release48.4"
 if [ -f package/smartdns/Makefile ]; then
+    echo "smartdns => $SMARTDNS_LATEST ($SMARTDNS_TAG)"
     sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=$SMARTDNS_LATEST/" package/smartdns/Makefile
     sed -i "s/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=$SMARTDNS_TAG/" package/smartdns/Makefile
     sed -i '/PKG_HASH/d;/PKG_MIRROR_HASH/d' package/smartdns/Makefile
     sed -i "/^PKG_SOURCE_VERSION:=/a PKG_HASH:=skip\nPKG_MIRROR_HASH:=skip" package/smartdns/Makefile
 fi
 
-for dir in package/passwall-packages package/ddns-go package/smartdns package/openwrt-daede package/luci-app-openclash; do
-    [ -d "$dir" ] || continue
-    find "$dir" -type f -name "Makefile" -exec sed -i -E \
-        -e 's/^([[:space:]]*PKG_VERSION[[:space:]]*:?=[[:space:]]*[0-9]+(\.[0-9]+)*)[^0-9.].*/\1/g' \
-        {} + || true
-done
-
 ##############################################################################
-# 6. 基础系统与网络参数优化
+# 6. 基础系统与网络参数
 ##############################################################################
-# 默认 IP 调整为 10.0.0.10
 sed -i 's/192.168.1.1/10.0.0.10/g' package/base-files/files/bin/config_generate
-
 mkdir -p package/base-files/files/etc
 echo 'net.netfilter.nf_conntrack_max=262144' >> package/base-files/files/etc/sysctl.conf
 echo 'net.core.default_qdisc=fq' >> package/base-files/files/etc/sysctl.conf
 echo 'net.ipv4.tcp_congestion_control=bbr' >> package/base-files/files/etc/sysctl.conf
 echo 'export PS1="\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> package/base-files/files/etc/profile
-
 sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" include/image.mk
 
-# 默认中文界面
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language << 'EOF'
 #!/bin/sh
@@ -202,7 +168,7 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-custom-language
 
 ##############################################################################
-# 7. 生成 .config 编译配置
+# 7. 生成 .config
 ##############################################################################
 touch .config
 sed -i '/luci-app-transmission/d;/transmission-daemon/d' .config
@@ -221,7 +187,6 @@ echo "# CONFIG_PACKAGE_runc is not set" >> .config
 echo "# CONFIG_PACKAGE_tini is not set" >> .config
 echo "# CONFIG_PACKAGE_libnetwork is not set" >> .config
 
-# 基础框架与目标平台
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_cn=y" >> .config
 COMPILE_DATE_SHORT="$(date +%y.%m.%d)"
@@ -235,10 +200,7 @@ echo "CONFIG_TARGET_x86_64_DEVICE_generic=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
 echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
 
-# PVE 专属 Agent 支持
 echo "CONFIG_PACKAGE_qemu-ga=y" >> .config
-
-# 硬件网卡驱动
 echo "CONFIG_PACKAGE_kmod-igc=y" >> .config
 echo "CONFIG_PACKAGE_kmod-igb=y" >> .config
 echo "CONFIG_PACKAGE_kmod-e1000e=y" >> .config
@@ -247,7 +209,6 @@ echo "CONFIG_PACKAGE_kmod-virtio-net=y" >> .config
 echo "CONFIG_PACKAGE_kmod-virtio-blk=y" >> .config
 echo "CONFIG_PACKAGE_kmod-virtio-scsi=y" >> .config
 
-# 磁盘与文件系统
 echo "CONFIG_PACKAGE_kmod-usb-storage=y" >> .config
 echo "CONFIG_PACKAGE_kmod-usb-storage-uas=y" >> .config
 echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
@@ -263,7 +224,6 @@ echo "CONFIG_PACKAGE_parted=y" >> .config
 echo "CONFIG_PACKAGE_lsblk=y" >> .config
 echo "CONFIG_PACKAGE_smartmontools=y" >> .config
 
-# 完整 eBPF/BTF 编译顶层工具链支持
 echo "CONFIG_DEVEL=y" >> .config
 echo "CONFIG_BPF_TOOLCHAIN_HOST=y" >> .config
 echo "CONFIG_KERNEL_DEBUG_INFO=y" >> .config
@@ -278,9 +238,7 @@ echo "CONFIG_PACKAGE_kmod-sched-bpf=y" >> .config
 echo "CONFIG_PACKAGE_kmod-sched-core=y" >> .config
 echo "CONFIG_PACKAGE_kmod-veth=y" >> .config
 
-# 核心路由转发环境
 echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
-# [修复标注] 补充 PassWall 必备透明代理/NAT 关键内核依赖，解决无法启动的根本原因
 echo "CONFIG_PACKAGE_kmod-nft-nat=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-tproxy=y" >> .config
 echo "CONFIG_PACKAGE_kmod-nft-socket=y" >> .config
@@ -303,7 +261,7 @@ echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> .config
 
-# PassWall 全功能组件
+# PassWall（无 Trojan-Go / Trojan-Plus）
 echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y" >> .config
@@ -312,28 +270,24 @@ echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y" >> .config
 echo "CONFIG_PACKAGE_sing-box=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y" >> .config
 echo "CONFIG_PACKAGE_xray-core=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Go=y" >> .config
-echo "CONFIG_PACKAGE_trojan-go=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y" >> .config
-echo "CONFIG_PACKAGE_trojan-plus=y" >> .config
-# [修复标注] 补充 Shadowsocks-Rust 客户端支持，避免 SS 节点因找不到执行文件导致 PassWall 崩溃
 echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust=y" >> .config
 echo "CONFIG_PACKAGE_shadowsocks-rust=y" >> .config
+echo "# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Go is not set" >> .config
+echo "# CONFIG_PACKAGE_trojan-go is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus is not set" >> .config
+echo "# CONFIG_PACKAGE_trojan-plus is not set" >> .config
 echo "CONFIG_PACKAGE_chinadns-ng=y" >> .config
-echo "CONFIG_PACKAGE_dns2socks=y" >> .config
 echo "CONFIG_PACKAGE_microsocks=y" >> .config
-echo "CONFIG_PACKAGE_ipt2socks=y" >> .config
 echo "CONFIG_PACKAGE_v2ray-geodata=y" >> .config
 echo "CONFIG_PACKAGE_geoview=y" >> .config
 echo "CONFIG_PACKAGE_tcping=y" >> .config
+# 不再强制：dns2socks / ipt2socks（PassWall 若强依赖会自行选中）
 
-# openwrt-daede 统一套件
 echo "CONFIG_PACKAGE_luci-app-daede=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-daede-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_daed=y" >> .config
 echo "CONFIG_PACKAGE_dae=y" >> .config
 
-# OpenClash 完整依赖链
 echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_luci-compat=y" >> .config
@@ -346,25 +300,26 @@ echo "CONFIG_PACKAGE_curl=y" >> .config
 echo "CONFIG_PACKAGE_tar=y" >> .config
 echo "CONFIG_PACKAGE_unzip=y" >> .config
 
-# 扩展工具
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ddns-go=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-diskman=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-lucky=y" >> .config
+
+# 官方 feeds zerotier（不再用 istore 旧 luci）
 echo "CONFIG_PACKAGE_luci-app-zerotier=y" >> .config
 echo "CONFIG_PACKAGE_zerotier=y" >> .config
+
 echo "CONFIG_PACKAGE_luci-app-ksmbd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ksmbd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_ksmbd-server=y" >> .config
 echo "CONFIG_PACKAGE_wsdd2=y" >> .config
-echo "CONFIG_PACKAGE_autosamba=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-ttyd=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y" >> .config
 echo "CONFIG_PACKAGE_ttyd=y" >> .config
 
-# 禁用冗余无线协议
+echo "# CONFIG_PACKAGE_autosamba is not set" >> .config
 echo "# CONFIG_PACKAGE_tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-tailscale is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-app-samba4 is not set" >> .config
@@ -381,7 +336,7 @@ echo "# CONFIG_PACKAGE_ppp is not set" >> .config
 echo "# CONFIG_PACKAGE_ppp-mod-pppoe is not set" >> .config
 
 ##############################################################################
-# 8. 磁盘挂载与多代理互斥自启管理
+# 8. 磁盘挂载与服务默认（自动挂载仍只认 sda3/vda3）
 ##############################################################################
 cat > package/base-files/files/etc/uci-defaults/99-auto-mount << 'EOF'
 #!/bin/sh
@@ -391,7 +346,6 @@ if [ -b "/dev/sda3" ]; then
 elif [ -b "/dev/vda3" ]; then
     TARGET_DEV="/dev/vda3"
 fi
-
 if [ -n "$TARGET_DEV" ]; then
     uci -q delete fstab.data
     uci set fstab.data="mount"
@@ -411,12 +365,10 @@ chmod +x package/base-files/files/etc/uci-defaults/99-auto-mount
 
 cat > package/base-files/files/etc/uci-defaults/99-enable-services << 'EOF'
 #!/bin/sh
-# 启用 SmartDNS
 uci -q set smartdns.@smartdns[0].enabled='1'
 uci commit smartdns
 /etc/init.d/smartdns enable || true
 
-# [修复标注] 安全停用 PassWall 自启，防止配置文件不存在时产生脏写入导致配置结构损坏
 if [ -f "/etc/config/passwall" ]; then
     uci -q set passwall.@global[0].enabled='0' 2>/dev/null || true
     uci commit passwall 2>/dev/null || true
@@ -428,7 +380,7 @@ uci commit openclash || true
 /etc/init.d/openclash disable || true
 
 /etc/init.d/daed disable 2>/dev/null || true
-/etc/init.d/dae  disable 2>/dev/null || true
+/etc/init.d/dae disable 2>/dev/null || true
 uci -q set daede.@global[0].enabled='0' 2>/dev/null || true
 uci -q set daede.config.enabled='0' 2>/dev/null || true
 uci commit daede 2>/dev/null || true
@@ -439,14 +391,13 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-enable-services
 
 ##############################################################################
-# 9. 内核 BPF/BTF 配置多层注入（幂等性操作）
+# 9. 内核 BPF/BTF 注入
 ##############################################################################
 set_kconfig() {
     local opt="$1" file="$2"
     sed -i "/# ${opt} is not set/d" "$file"
     grep -q "^${opt}=y" "$file" || echo "${opt}=y" >> "$file"
 }
-
 for conf in target/linux/generic/config-* target/linux/x86/config-* target/linux/x86/64/config-*; do
     [ -f "$conf" ] || continue
     set_kconfig "CONFIG_BPF" "$conf"
@@ -465,4 +416,4 @@ for conf in target/linux/generic/config-* target/linux/x86/config-* target/linux
     echo "# CONFIG_DEBUG_INFO_REDUCED is not set" >> "$conf"
 done
 
-echo "=== diyyb1-part2.sh 执行完成（已适配 N6000 兼容架构） ==="
+echo "=== diyyb1-part2.sh 执行完成 ==="
