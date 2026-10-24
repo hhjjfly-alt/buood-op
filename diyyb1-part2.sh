@@ -159,7 +159,7 @@ sed -i "s/IMG_PREFIX:=.*/IMG_PREFIX:=OpenWrt-PVE-N6000-$(date +%Y%m%d)/g" includ
 
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-custom-language << 'EOF'
-#!/bin/sh
+#!/sh
 uci set luci.main.lang='zh_cn'
 uci commit luci
 rm -f /etc/uci-defaults/99-custom-language
@@ -365,25 +365,43 @@ chmod +x package/base-files/files/etc/uci-defaults/99-auto-mount
 
 cat > package/base-files/files/etc/uci-defaults/99-enable-services << 'EOF'
 #!/bin/sh
-uci -q set smartdns.@smartdns[0].enabled='1'
-uci commit smartdns
-/etc/init.d/smartdns enable || true
 
+# 1. 注册核心服务的自启软链接，确保系统启动链与 LuCI 开关控制正常
+for svc in smartdns passwall openclash daed dae; do
+    if [ -x "/etc/init.d/$svc" ]; then
+        /etc/init.d/$svc enable || true
+    fi
+done
+
+# 2. 清理可能残留的进程锁与缓存目录，防止升级后阻塞服务执行
+rm -f /var/lock/passwall* /tmp/etc/passwall* 2>/dev/null || true
+
+# 3. 仅在全新安装（未配置节点）时设为默认关闭；保留配置升级则跳过，不修改原有 enabled 状态
 if [ -f "/etc/config/passwall" ]; then
-    uci -q set passwall.@global[0].enabled='0' 2>/dev/null || true
-    uci commit passwall 2>/dev/null || true
+    if [ -z "$(uci -q get passwall.@global[0].tcp_node)" ] && [ -z "$(uci -q get passwall.@global[0].node)" ]; then
+        uci -q set passwall.@global[0].enabled='0' 2>/dev/null || true
+        uci commit passwall 2>/dev/null || true
+    fi
 fi
-/etc/init.d/passwall disable || true
 
-uci -q set openclash.config.enable='0'
-uci commit openclash || true
-/etc/init.d/openclash disable || true
+# SmartDNS：仅全新安装时默认启用
+if [ -z "$(uci -q get smartdns.@smartdns[0].enabled)" ]; then
+    uci -q set smartdns.@smartdns[0].enabled='1'
+    uci commit smartdns 2>/dev/null || true
+fi
 
-/etc/init.d/daed disable 2>/dev/null || true
-/etc/init.d/dae disable 2>/dev/null || true
-uci -q set daede.@global[0].enabled='0' 2>/dev/null || true
-uci -q set daede.config.enabled='0' 2>/dev/null || true
-uci commit daede 2>/dev/null || true
+# OpenClash：仅全新安装时默认不自启
+if [ -f "/etc/config/openclash" ] && [ -z "$(uci -q get openclash.config.config_path)" ]; then
+    uci -q set openclash.config.enable='0' 2>/dev/null || true
+    uci commit openclash 2>/dev/null || true
+fi
+
+# daede：仅全新安装时默认不自启
+if [ -f "/etc/config/daede" ] && [ -z "$(uci -q get daede.@global[0].enabled)" ]; then
+    uci -q set daede.@global[0].enabled='0' 2>/dev/null || true
+    uci -q set daede.config.enabled='0' 2>/dev/null || true
+    uci commit daede 2>/dev/null || true
+fi
 
 rm -f /etc/uci-defaults/99-enable-services
 exit 0
